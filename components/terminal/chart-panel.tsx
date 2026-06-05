@@ -135,6 +135,11 @@ export function ChartPanel() {
 
     let cancelled = false
 
+    // Clear previous data immediately so we don't mix assets, and force auto-scale.
+    seriesRef.current.setData([])
+    chartRef.current?.priceScale("right").applyOptions({ autoScale: true })
+    candleRef.current = null
+
     const applyHistory = (history: Candle[]) => {
       if (cancelled || !seriesRef.current || seededKeyRef.current !== key) return
       seriesRef.current.setData(history)
@@ -154,12 +159,16 @@ export function ChartPanel() {
         const res = await fetch(
           `/api/candles?symbol=${encodeURIComponent(activeSymbol)}&tf=${timeframe}`,
         )
-        if (!res.ok) return
+        if (!res.ok) throw new Error("Fetch failed")
         const json = (await res.json()) as {
           candles?: { time: number; open: number; high: number; low: number; close: number }[]
         }
         const raw = json.candles ?? []
-        if (raw.length === 0) return
+        
+        if (raw.length === 0) {
+          throw new Error("No candles returned")
+        }
+        
         const real: Candle[] = raw.map((c) => ({
           time: c.time as UTCTimestamp,
           open: Number(c.open.toFixed(asset.digits)),
@@ -169,7 +178,18 @@ export function ChartPanel() {
         }))
         applyHistory(real)
       } catch {
-        // Network error — the simulated seed already on screen is fine.
+        // Network error or empty history — seed a single starting candle
+        // at the current market price so the chart axis focuses correctly.
+        const now = Math.floor(Date.now() / 1000)
+        const bucket = (now - (now % timeframe)) as UTCTimestamp
+        const seed: Candle = {
+          time: bucket,
+          open: marketPrice,
+          high: marketPrice,
+          low: marketPrice,
+          close: marketPrice,
+        }
+        applyHistory([seed])
       }
     }
     load()

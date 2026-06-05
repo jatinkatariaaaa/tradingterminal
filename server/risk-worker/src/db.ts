@@ -96,6 +96,34 @@ export async function fetchWorkingOrders(accountId: string): Promise<OrderRow[]>
   return (data ?? []) as OrderRow[]
 }
 
+/** Bulk fetch all positions for a batch of accounts (O(1) query) */
+export async function fetchAllPositions(accountIds: string[]): Promise<PositionRow[]> {
+  if (accountIds.length === 0) return []
+  const { data, error } = await supabase
+    .from("positions")
+    .select(
+      "id, account_id, symbol, direction, volume, open_price, contract_size, digits, stop_loss, take_profit, commission, margin",
+    )
+    .in("account_id", accountIds)
+  if (error) throw error
+  return (data ?? []) as PositionRow[]
+}
+
+/** Bulk fetch all working orders for a batch of accounts (O(1) query) */
+export async function fetchAllWorkingOrders(accountIds: string[]): Promise<OrderRow[]> {
+  if (accountIds.length === 0) return []
+  const { data, error } = await supabase
+    .from("orders")
+    .select(
+      "id, account_id, symbol, direction, kind, volume, trigger_price, placed_price, stop_loss, take_profit",
+    )
+    .in("account_id", accountIds)
+    .eq("status", "working")
+  if (error) throw error
+  return (data ?? []) as OrderRow[]
+}
+
+
 export async function rpcClosePosition(args: {
   positionId: string
   exitFill: number

@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server"
 import { createSupabaseServiceClient } from "@/lib/supabase/service"
 
+export const revalidate = 2 // Cache at the Edge for 2 seconds to absorb massive traffic
+
+
 /**
  * Server-side proxy that pulls Forex, metals & energy prices from
  * the public.prices database table (populated by the authorative worker).

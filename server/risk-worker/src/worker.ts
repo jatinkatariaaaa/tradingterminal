@@ -18,8 +18,8 @@ import { ASSET_MAP, getPrice, getPrices, startIngestion } from "./prices.js"
 import { publishPrices } from "./publish-prices.js"
 import {
   fetchTradableAccounts,
-  fetchPositions,
-  fetchWorkingOrders,
+  fetchAllPositions,
+  fetchAllWorkingOrders,
   rpcApplyRiskTick,
   rpcBreachAccount,
   rpcClosePosition,
@@ -54,11 +54,14 @@ function slTpExit(p: PositionRow, mid: number): { exit: number; reason: "tp" | "
   return null
 }
 
-async function tickAccount(accountId: string, account: AccountRow): Promise<void> {
+async function tickAccount(
+  accountId: string,
+  account: AccountRow,
+  positions: PositionRow[],
+  orders: OrderRow[]
+): Promise<void> {
   const balance = account.balance
   const prices = getPrices()
-  const positions = await fetchPositions(accountId)
-  const orders = await fetchWorkingOrders(accountId)
 
   // 1) Fill triggered pending orders (genuine cross from the placed side).
   for (const o of orders) {
@@ -186,9 +189,27 @@ async function tick(): Promise<void> {
     // market orders from public.prices (Option A fill-price model).
     await publishPrices()
     const accounts = await fetchTradableAccounts()
+    if (accounts.length === 0) return
+
+    const accountIds = accounts.map(a => a.id)
+    const allPositions = await fetchAllPositions(accountIds)
+    const allOrders = await fetchAllWorkingOrders(accountIds)
+
+    const positionsByAccount: Record<string, PositionRow[]> = {}
+    for (const p of allPositions) {
+      if (!positionsByAccount[p.account_id]) positionsByAccount[p.account_id] = []
+      positionsByAccount[p.account_id].push(p)
+    }
+
+    const ordersByAccount: Record<string, OrderRow[]> = {}
+    for (const o of allOrders) {
+      if (!ordersByAccount[o.account_id]) ordersByAccount[o.account_id] = []
+      ordersByAccount[o.account_id].push(o)
+    }
+
     for (const a of accounts) {
       try {
-        await tickAccount(a.id, a)
+        await tickAccount(a.id, a, positionsByAccount[a.id] || [], ordersByAccount[a.id] || [])
       } catch (err) {
         console.error(`[account ${a.id}] tick error:`, (err as Error).message)
       }

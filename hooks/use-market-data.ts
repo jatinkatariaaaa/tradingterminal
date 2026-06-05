@@ -156,7 +156,57 @@ export function useMarketData(): MarketData {
     }
   }, [])
 
+  // --- Internal Simulator: keeps non-crypto markets ticking visually. ---
+  // A 500ms loop that nudges every forex/metal/energy price by a tiny random
+  // fraction (~+/-0.005%) with gentle mean-reversion toward its real anchor
+  // so the feed is always "live" even on weekends.
+  useEffect(() => {
+    let disposed = false
+    const tick = () => {
+      if (disposed) return
+      let changed = false
+      const live = latestRef.current
+      const anchors = anchorRef.current
 
+      for (const asset of ASSETS) {
+        // Leave Binance pairs alone if the socket is alive.
+        if (asset.feed === "binance" && binanceConnectedRef.current) continue
+
+        const sym = asset.symbol
+        const anchor = anchors[sym] || asset.basePrice
+        const current = live[sym] || anchor
+
+        // Drift further if we're far from the anchor, to pull it back.
+        const distance = (current - anchor) / anchor
+        const drift = -distance * 0.1
+
+        // +/- 0.005% random walk step.
+        const volatility = 0.00005
+        const step = anchor * volatility * (Math.random() - 0.5 + drift)
+
+        const next = current + step
+        
+        // Only update if it actually moved a bit to avoid extreme micro-spam
+        if (Math.abs(next - current) > (1 / 10 ** (asset.digits + 1))) {
+          live[sym] = Number(next.toFixed(asset.digits + 1)) // keep extra precision internally
+          changed = true
+        }
+      }
+
+      if (changed) dirtyRef.current = true
+      
+      // Random interval between 200ms and 800ms for realistic ticking
+      if (!disposed) {
+        setTimeout(tick, 200 + Math.random() * 600)
+      }
+    }
+
+    tick()
+
+    return () => {
+      disposed = true
+    }
+  }, [])
 
   return { prices, binanceConnected }
 }

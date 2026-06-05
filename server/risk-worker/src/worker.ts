@@ -15,6 +15,7 @@
 
 import "./preload.js"
 import { ASSET_MAP, getPrice, getPrices, startIngestion } from "./prices.js"
+import { startWsServer } from "./ws-server.js"
 import { publishPrices } from "./publish-prices.js"
 import {
   fetchTradableAccounts,
@@ -220,6 +221,9 @@ async function tick(): Promise<void> {
 }
 
 async function main(): Promise<void> {
+  const wsPort = Number(process.env.WS_PORT || 8080)
+  startWsServer(wsPort)
+
   console.log("risk-worker: starting ingestion\u2026")
   await startIngestion(FX_POLL_MS)
   console.log(`risk-worker: ingestion ready, ticking every ${TICK_MS}ms`)

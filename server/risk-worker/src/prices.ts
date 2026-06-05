@@ -1,5 +1,6 @@
 import WebSocket from "ws"
 import { ASSETS, ASSET_MAP } from "./assets.js"
+import { broadcastPrice } from "./ws-server.js"
 
 const latest: Record<string, number> = {}
 
@@ -48,6 +49,7 @@ function startBinance(): void {
             const internalSymbol = reverseMap[sym]
             if (internalSymbol) {
               latest[internalSymbol] = price
+              broadcastPrice(internalSymbol, price)
             }
           }
         }
@@ -131,6 +133,7 @@ function startTiingo(): void {
             const internalSymbol = reverseMap[ticker.toLowerCase()]
             if (internalSymbol) {
               latest[internalSymbol] = midPrice
+              broadcastPrice(internalSymbol, midPrice)
             }
           }
         }
@@ -179,6 +182,7 @@ function startTwelveData(): void {
         const msg = JSON.parse(raw.toString())
         if (msg.event === "price" && msg.symbol === usoilAsset.twelveDataSymbol && typeof msg.price === "number") {
           latest["USOIL"] = msg.price
+          broadcastPrice("USOIL", msg.price)
         } else if (msg.event === "error") {
           console.error("Twelve Data WebSocket error:", msg)
         }

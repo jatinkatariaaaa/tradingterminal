@@ -116,43 +116,48 @@ export function useMarketData(): MarketData {
     }
   }, [])
 
-  // --- Real, near-live anchors for forex, metals & energy via the proxy. -----
+  // --- Real, zero-latency WebSocket connection directly to the risk-worker. ---
   useEffect(() => {
-    const yahooAssets = ASSETS.filter((a) => !!a.yahooTicker)
-    if (yahooAssets.length === 0) return
-
-    const symbols = yahooAssets.map((a) => a.symbol).join(",")
+    // In production, this should point to your hosted risk-worker's WS URL.
+    // Ensure NEXT_PUBLIC_WS_URL is set in Vercel to something like wss://api.yourdomain.com:8080
+    const wsUrl = process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:8080"
+    
+    let ws: WebSocket | null = null
+    let reconnectTimer: ReturnType<typeof setTimeout> | null = null
     let disposed = false
 
-    const pull = async () => {
-      try {
-        const res = await fetch(`/api/fx-quotes?symbols=${encodeURIComponent(symbols)}`)
-        if (!res.ok) return
-        const json = (await res.json()) as { prices?: Record<string, number> }
-        const fresh = json?.prices ?? {}
-        for (const [symbol, price] of Object.entries(fresh)) {
-          if (typeof price !== "number" || !Number.isFinite(price)) continue
-          anchorRef.current[symbol] = price
-          // Always snap the displayed price to the real quote from the server.
-          // This keeps the terminal UI in perfect sync with the database prices,
-          // preventing any execution price mismatches (slippage) in the Order Ticket.
-          latestRef.current[symbol] = price
-          dirtyRef.current = true
+    const connect = () => {
+      ws = new WebSocket(wsUrl)
+
+      ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data)
+          if (data.symbol && typeof data.price === "number") {
+            const sym = data.symbol
+            const price = data.price
+            anchorRef.current[sym] = price
+            latestRef.current[sym] = price
+            dirtyRef.current = true
+          }
+        } catch {
+          // ignore malformed frames
         }
-      } catch {
-        // Never surface fetch errors — the simulator keeps the feed alive.
       }
+
+      ws.onclose = () => {
+        if (!disposed) reconnectTimer = setTimeout(connect, 2000)
+      }
+
+      ws.onerror = () => ws?.close()
     }
 
-    pull()
-    // Yahoo quotes are near-live; refresh frequently to stay accurate.
-    const id = setInterval(() => {
-      if (!disposed) pull()
-    }, 2000)
+    connect()
 
     return () => {
       disposed = true
-      clearInterval(id)
+      if (reconnectTimer) clearTimeout(reconnectTimer)
+      ws?.close()
+      ws = null
     }
   }, [])
 

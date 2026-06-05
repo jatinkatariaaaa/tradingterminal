@@ -28,7 +28,7 @@ interface CacheEntry {
   fetchedAt: number
 }
 const cache = new Map<string, CacheEntry>()
-const CACHE_TTL_MS = 15 * 60 * 1000 // 15 minutes
+const CACHE_TTL_MS = 60 * 1000 // 1 minute (reduced from 15 mins to fix missing candles)
 
 function getCached(key: string): Candle[] | null {
   const entry = cache.get(key)

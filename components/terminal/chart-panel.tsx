@@ -52,7 +52,9 @@ export function ChartPanel() {
   const isMobile = useIsMobile()
   const asset = getAsset(activeSymbol)
 
-  const [timeframe, setTimeframe] = useState<number>(TIMEFRAMES[0].seconds)
+  // Default to 1h timeframe (index 5) so the chart always has deep history on mount,
+  // preventing blank/empty charts on weekends when sub-minute ticks aren't streaming.
+  const [timeframe, setTimeframe] = useState<number>(TIMEFRAMES[5].seconds)
 
   const containerRef = useRef<HTMLDivElement>(null)
   const chartRef = useRef<IChartApi | null>(null)

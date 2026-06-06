@@ -37,7 +37,14 @@ export async function GET(request: Request) {
           if (Number.isFinite(numPrice) && numPrice > 0) {
             // Check if stale (older than 1 hour)
             const updatedAt = new Date(row.updated_at).getTime()
-            if (now - updatedAt > 60 * 60 * 1000) {
+            const isStaleTime = now - updatedAt > 60 * 60 * 1000
+
+            // TIMESTAMP LOOPHOLE FIX: If the DB just got re-seeded/re-deployed, its updated_at
+            // will be "fresh", but the price is the fake basePrice. We MUST overwrite it.
+            const asset = ASSETS.find(a => a.symbol === row.symbol)
+            const isSeedValue = asset && numPrice === asset.basePrice
+
+            if (isStaleTime || isSeedValue) {
               staleSymbols.push(row.symbol)
             } else {
               if (requested.length === 0 || requested.includes(row.symbol)) {

@@ -221,7 +221,7 @@ async function tick(): Promise<void> {
 }
 
 async function main(): Promise<void> {
-  const wsPort = Number(process.env.WS_PORT || 8080)
+  const wsPort = Number(process.env.PORT || process.env.WS_PORT || 8080)
   startWsServer(wsPort)
 
   console.log("risk-worker: starting ingestion\u2026")

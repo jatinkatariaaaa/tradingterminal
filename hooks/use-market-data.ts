@@ -134,7 +134,11 @@ export function useMarketData(): MarketData {
           latestRef.current[symbol] = price
           changed = true
         }
-        if (changed) dirtyRef.current = true
+        if (changed) {
+          dirtyRef.current = true
+          // Force immediate React state override to clear hardcoded fallback values instantly.
+          setPrices({ ...latestRef.current })
+        }
       } catch {
         // ignore errors
       }

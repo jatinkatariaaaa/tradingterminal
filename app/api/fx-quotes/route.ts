@@ -2,7 +2,7 @@ import { NextResponse } from "next/server"
 import { createSupabaseServiceClient } from "@/lib/supabase/service"
 import { ASSETS } from "@/lib/trading/assets"
 
-export const revalidate = 2 // Cache at the Edge for 2 seconds to absorb massive traffic
+export const dynamic = "force-dynamic" // FORCE DYNAMIC: Stop Vercel from caching this API response.
 
 
 /**

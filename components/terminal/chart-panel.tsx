@@ -180,6 +180,16 @@ export function ChartPanel() {
           low: Number(c.low.toFixed(asset.digits)),
           close: Number(c.close.toFixed(asset.digits)),
         }))
+
+        // SYNC FIX: Ensure the chart's last candle perfectly matches the unified marketPrice 
+        // (from the Left Panel/Header) so there are no minor discrepancy gaps.
+        if (real.length > 0 && marketPrice > 0 && Number.isFinite(marketPrice)) {
+          const last = real[real.length - 1]
+          last.close = Number(marketPrice.toFixed(asset.digits))
+          last.high = Math.max(last.high, last.close)
+          last.low = Math.min(last.low, last.close)
+        }
+
         applyHistory(real)
       } catch {
         // Network error or empty history — seed a single starting candle

@@ -71,7 +71,7 @@ export async function GET(request: Request) {
         .filter(Boolean)
 
       if (tdSymbols.length > 0) {
-        const TWELVEDATA_KEY = process.env.TWELVEDATA_API_KEY || ""
+        const TWELVEDATA_KEY = process.env.TWELVE_DATA_KEY || process.env.TWELVEDATA_API_KEY || "b6a9bb0bed6f48919daded4e7b1cdef7"
         const url = `https://api.twelvedata.com/price?symbol=${tdSymbols.join(",")}&apikey=${TWELVEDATA_KEY}`
         const res = await fetch(url)
         if (res.ok) {

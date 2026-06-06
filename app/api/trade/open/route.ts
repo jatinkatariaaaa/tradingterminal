@@ -3,6 +3,7 @@ import { requireUser } from "../_auth"
 import { createSupabaseServiceClient } from "@/lib/supabase/service"
 import { getAsset } from "@/lib/trading/assets"
 import { categoryOf } from "@/lib/trading/category"
+import { isMarketOpen } from "@/lib/trading/market-hours"
 
 /**
  * Open a MARKET position. The client sends only the INTENT (account, symbol,
@@ -32,6 +33,11 @@ export async function POST(request: Request) {
   const { accountId, symbol, direction, volume } = body
   if (!accountId || !symbol || (direction !== "buy" && direction !== "sell") || !volume || volume <= 0) {
     return NextResponse.json({ error: "accountId, symbol, direction, positive volume required" }, { status: 400 })
+  }
+
+  const category = categoryOf(symbol)
+  if (!isMarketOpen(category)) {
+    return NextResponse.json({ error: "Market is closed for this asset class." }, { status: 400 })
   }
 
   const asset = getAsset(symbol)

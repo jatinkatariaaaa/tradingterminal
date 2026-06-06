@@ -52,3 +52,19 @@ export const ASSETS: WorkerAsset[] = [
 export const ASSET_MAP: Record<string, WorkerAsset> = Object.fromEntries(
   ASSETS.map((a) => [a.symbol, a]),
 )
+
+export function isMarketOpen(category: AssetCategory): boolean {
+  if (category === "crypto") return true // Crypto is open 24/7
+
+  const now = new Date()
+  const day = now.getUTCDay() // 0 = Sunday, 1 = Monday, ..., 5 = Friday, 6 = Saturday
+  const hour = now.getUTCHours()
+
+  // Forex, Metals, Commodities typically close Friday 22:00 UTC and open Sunday 22:00 UTC
+  if (day === 5 && hour >= 22) return false
+  if (day === 6) return false
+  if (day === 0 && hour < 22) return false
+
+  return true
+}
+

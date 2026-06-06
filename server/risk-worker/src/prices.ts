@@ -1,5 +1,5 @@
 import WebSocket from "ws"
-import { ASSETS, ASSET_MAP } from "./assets.js"
+import { ASSETS, ASSET_MAP, isMarketOpen } from "./assets.js"
 import { broadcastPrice } from "./ws-server.js"
 
 const latest: Record<string, number> = {}
@@ -132,6 +132,8 @@ function startTiingo(): void {
           if (typeof ticker === "string" && typeof midPrice === "number") {
             const internalSymbol = reverseMap[ticker.toLowerCase()]
             if (internalSymbol) {
+              const asset = ASSET_MAP[internalSymbol]
+              if (asset && !isMarketOpen(asset.category)) return // Block closed market ticks
               latest[internalSymbol] = midPrice
               broadcastPrice(internalSymbol, midPrice)
             }
@@ -181,6 +183,7 @@ function startTwelveData(): void {
       try {
         const msg = JSON.parse(raw.toString())
         if (msg.event === "price" && msg.symbol === usoilAsset.twelveDataSymbol && typeof msg.price === "number") {
+          if (!isMarketOpen(usoilAsset.category)) return // Block closed market ticks
           latest["USOIL"] = msg.price
           broadcastPrice("USOIL", msg.price)
         } else if (msg.event === "error") {

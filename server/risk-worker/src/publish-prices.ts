@@ -5,6 +5,7 @@
 
 import { supabase } from "./db.js"
 import { getPrices } from "./prices.js"
+import { ASSET_MAP, isMarketOpen } from "./assets.js"
 
 const lastPublishedTime: Record<string, number> = {}
 
@@ -15,6 +16,9 @@ export async function publishPrices(): Promise<void> {
 
   for (const [symbol, price] of Object.entries(prices)) {
     if (!Number.isFinite(price) || price <= 0) continue
+
+    const asset = ASSET_MAP[symbol]
+    if (asset && !isMarketOpen(asset.category)) continue
 
     const lastTime = lastPublishedTime[symbol] ?? 0
     if (now - lastTime >= 5000) {

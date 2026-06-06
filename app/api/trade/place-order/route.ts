@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server"
 import { requireUser } from "../_auth"
 import { createSupabaseServiceClient } from "@/lib/supabase/service"
+import { categoryOf } from "@/lib/trading/category"
+import { isMarketOpen } from "@/lib/trading/market-hours"
 
 /**
  * Place a PENDING order (limit or stop). The order is inserted as 'working';
@@ -46,6 +48,11 @@ export async function POST(request: Request) {
       { error: "accountId, symbol, direction, kind, positive volume, positive triggerPrice required" },
       { status: 400 },
     )
+  }
+
+  const category = categoryOf(symbol)
+  if (!isMarketOpen(category)) {
+    return NextResponse.json({ error: "Market is closed for this asset class." }, { status: 400 })
   }
 
   const supabase = createSupabaseServiceClient()

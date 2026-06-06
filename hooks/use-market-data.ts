@@ -116,6 +116,33 @@ export function useMarketData(): MarketData {
     }
   }, [])
 
+  // --- Initial Price Sync (Solves Weekend Stale Prices) ---
+  // When the WebSocket connects on a weekend, it receives no live updates because markets are closed.
+  // This initial fetch ensures the UI immediately displays the last known Friday close price from the DB.
+  useEffect(() => {
+    let disposed = false
+    const pullInitial = async () => {
+      try {
+        const res = await fetch(`/api/fx-quotes`)
+        if (!res.ok) return
+        const json = await res.json()
+        const fresh = json?.prices ?? {}
+        let changed = false
+        for (const [symbol, price] of Object.entries(fresh)) {
+          if (typeof price !== "number" || !Number.isFinite(price)) continue
+          anchorRef.current[symbol] = price
+          latestRef.current[symbol] = price
+          changed = true
+        }
+        if (changed) dirtyRef.current = true
+      } catch {
+        // ignore errors
+      }
+    }
+    pullInitial()
+    return () => { disposed = true }
+  }, [])
+
   // --- Real, zero-latency WebSocket connection directly to the risk-worker. ---
   useEffect(() => {
     // In production, this should point to your hosted risk-worker's WS URL.

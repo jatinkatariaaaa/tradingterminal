@@ -12,6 +12,8 @@ import {
 } from "lightweight-charts"
 import { cn } from "@/lib/utils"
 import { formatPrice, getAsset } from "@/lib/trading/assets"
+import { categoryOf } from "@/lib/trading/category"
+import { isMarketOpen } from "@/lib/trading/market-hours"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { useTrading } from "./trading-provider"
 import { ChartOverlay } from "./chart-overlay"
@@ -208,6 +210,10 @@ export function ChartPanel() {
     // Safety check requested by user to prevent NaN/null spikes
     const price = Number.parseFloat(marketPrice as any)
     if (!Number.isFinite(price) || price <= 0) return
+
+    // STRICT WEEKEND CHECK: Completely freeze the chart if the market is closed.
+    // This stops dummy heartbeat doji candles from forming on lower timeframes.
+    if (!isMarketOpen(categoryOf(activeSymbol))) return
 
     const period = periodRef.current
     const now = Math.floor(Date.now() / 1000)

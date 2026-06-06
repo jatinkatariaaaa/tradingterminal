@@ -96,6 +96,13 @@ function startTiingo(): void {
   let reconnect: NodeJS.Timeout | null = null
 
   const connect = () => {
+    // DO NOT attempt to connect initially if the market is closed.
+    if (!isMarketOpen("forex")) {
+      console.log("Market is closed. Holding Tiingo WebSocket connection for 1 hour.")
+      if (!reconnect) reconnect = setTimeout(() => { reconnect = null; connect() }, 60 * 60 * 1000)
+      return
+    }
+
     ws = new WebSocket(TIINGO_WS_URL)
     
     ws.on("open", () => {
@@ -145,8 +152,15 @@ function startTiingo(): void {
     })
 
     ws.on("close", (code, reason) => {
-      console.log(`Tiingo WebSocket closed (${code}: ${reason}). Reconnecting in 2s...`)
-      if (!reconnect) reconnect = setTimeout(() => { reconnect = null; connect() }, 2000)
+      console.log(`Tiingo WebSocket closed (${code}: ${reason}).`)
+      let delay = 2000
+      if (code === 1006 && !isMarketOpen("forex")) {
+        console.log("Market closed. Pausing Tiingo WebSocket reconnection for 1 hour.")
+        delay = 60 * 60 * 1000 // 1 hour
+      } else {
+        console.log("Reconnecting in 2s...")
+      }
+      if (!reconnect) reconnect = setTimeout(() => { reconnect = null; connect() }, delay)
     })
     ws.on("error", (err) => {
       console.error("Tiingo WebSocket error:", err)
@@ -169,6 +183,13 @@ function startTwelveData(): void {
   let reconnect: NodeJS.Timeout | null = null
 
   const connect = () => {
+    // DO NOT attempt to connect initially if the market is closed.
+    if (!isMarketOpen(usoilAsset.category)) {
+      console.log("Market is closed. Holding Twelve Data WebSocket connection for 1 hour.")
+      if (!reconnect) reconnect = setTimeout(() => { reconnect = null; connect() }, 60 * 60 * 1000)
+      return
+    }
+
     ws = new WebSocket(TWELVEDATA_WS_URL)
     
     ws.on("open", () => {
@@ -195,8 +216,15 @@ function startTwelveData(): void {
     })
 
     ws.on("close", (code, reason) => {
-      console.log(`Twelve Data WebSocket closed (${code}: ${reason}). Reconnecting in 2s...`)
-      if (!reconnect) reconnect = setTimeout(() => { reconnect = null; connect() }, 2000)
+      console.log(`Twelve Data WebSocket closed (${code}: ${reason}).`)
+      let delay = 2000
+      if (code === 1006 && !isMarketOpen(usoilAsset.category)) {
+        console.log("Market closed. Pausing Twelve Data WebSocket reconnection for 1 hour.")
+        delay = 60 * 60 * 1000 // 1 hour
+      } else {
+        console.log("Reconnecting in 2s...")
+      }
+      if (!reconnect) reconnect = setTimeout(() => { reconnect = null; connect() }, delay)
     })
     ws.on("error", (err) => {
       console.error("Twelve Data WebSocket error:", err)

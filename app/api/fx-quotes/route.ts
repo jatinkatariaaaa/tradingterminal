@@ -35,16 +35,14 @@ export async function GET(request: Request) {
         if (row.price != null) {
           const numPrice = Number(row.price)
           if (Number.isFinite(numPrice) && numPrice > 0) {
-            // Check if stale (older than 1 hour)
-            const updatedAt = new Date(row.updated_at).getTime()
-            const isStaleTime = now - updatedAt > 60 * 60 * 1000
-
             // TIMESTAMP LOOPHOLE FIX: If the DB just got re-seeded/re-deployed, its updated_at
             // will be "fresh", but the price is the fake basePrice. We MUST overwrite it.
+            // We NO LONGER check time age (stale) because on weekends, prices are frozen anyway,
+            // and checking all 15 assets every hour triggers a 429 Rate Limit from Twelve Data.
             const asset = ASSETS.find(a => a.symbol === row.symbol)
             const isSeedValue = asset && numPrice === asset.basePrice
 
-            if (isStaleTime || isSeedValue) {
+            if (isSeedValue) {
               staleSymbols.push(row.symbol)
             } else {
               if (requested.length === 0 || requested.includes(row.symbol)) {
@@ -58,7 +56,10 @@ export async function GET(request: Request) {
 
     // If we have stale symbols (common on weekends with seeded DB), fetch true close from Twelve Data
     if (staleSymbols.length > 0) {
-      const tdSymbols = staleSymbols
+      // MAX 8 SYMBOLS PER MINUTE to strictly avoid Twelve Data HTTP 429 (Rate Limit) errors!
+      const safeBatch = staleSymbols.slice(0, 8)
+      
+      const tdSymbols = safeBatch
         .map(sym => {
           const asset = ASSETS.find(a => a.symbol === sym)
           if (asset?.twelveDataSymbol) {

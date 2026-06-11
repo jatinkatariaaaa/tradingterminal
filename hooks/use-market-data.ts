@@ -192,7 +192,37 @@ export function useMarketData(): MarketData {
     }
   }, [])
 
-
+  // --- SIMULATOR LOOP ---
+  // Keeps forex/metals/energy ticking based on the latest anchor price.
+  // Crypto is ignored because Binance WS is already live.
+  useEffect(() => {
+    const id = setInterval(() => {
+      let changed = false
+      for (const asset of ASSETS) {
+        if (asset.feed === "binance" && binanceConnectedRef.current) continue
+        
+        const anchor = anchorRef.current[asset.symbol]
+        const current = latestRef.current[asset.symbol]
+        
+        if (anchor && current) {
+          // Nudge by up to +/- 0.02%
+          const maxNudge = anchor * 0.0002
+          let delta = (Math.random() - 0.5) * 2 * maxNudge
+          
+          // Add mean-reversion if we drift too far from the anchor (>0.1%)
+          const drift = (current - anchor) / anchor
+          if (Math.abs(drift) > 0.001) {
+            delta -= drift * anchor * 0.1 // Pull back toward anchor
+          }
+          
+          latestRef.current[asset.symbol] = current + delta
+          changed = true
+        }
+      }
+      if (changed) dirtyRef.current = true
+    }, 500)
+    return () => clearInterval(id)
+  }, [])
 
   return { prices, binanceConnected }
 }

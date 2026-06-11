@@ -1,10 +1,11 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Pencil, X, ShieldX } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { formatMoney, formatPrice, getAsset } from "@/lib/trading/assets"
 import { useTrading } from "./trading-provider"
+import { useIsMobile } from "@/hooks/use-mobile"
 import { Button } from "@/components/ui/button"
 import {
   AlertDialog,
@@ -50,14 +51,23 @@ export function PositionsPanel() {
     selectedPositionId,
     setSelectedPositionId,
   } = useTrading()
+  const isMobile = useIsMobile()
   const [tab, setTab] = useState<Tab>("open")
+
+  useEffect(() => {
+    if (isMobile && tab === "account") {
+      setTab("open")
+    }
+  }, [isMobile, tab])
 
   const tabs: { key: Tab; label: string; count?: number }[] = [
     { key: "open", label: "Positions", count: openPositions.length },
     { key: "pending", label: "Pending", count: pendingOrders.length },
     { key: "history", label: "History", count: closedTrades.length },
-    { key: "account", label: "Account Details" },
   ]
+  if (!isMobile) {
+    tabs.push({ key: "account", label: "Account Details" })
+  }
 
   return (
     <section className="flex h-full min-h-0 flex-col bg-background">

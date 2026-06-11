@@ -6,6 +6,7 @@ import { formatMoney, formatPrice, getAsset } from "@/lib/trading/assets"
 import { useTrading } from "./trading-provider"
 import { Progress } from "@/components/ui/progress"
 import { useServerAccounts } from "@/hooks/use-server-accounts"
+import { ThemeToggle } from "./theme-toggle"
 import {
   Select,
   SelectContent,
@@ -174,6 +175,7 @@ export function AccountBar() {
         </div>
 
         <div className="ml-auto flex items-center gap-3">
+          <ThemeToggle />
           <StatusBadges status={account.status} connected={binanceConnected} />
         </div>
       </div>
@@ -198,6 +200,7 @@ export function AccountBar() {
           </span>
         </div>
         <div className="flex items-center gap-1.5">
+          <ThemeToggle />
           <StatusBadges status={account.status} connected={binanceConnected} />
         </div>
       </div>

@@ -15,6 +15,7 @@ import { formatPrice, getAsset } from "@/lib/trading/assets"
 import { categoryOf } from "@/lib/trading/category"
 import { isMarketOpen } from "@/lib/trading/market-hours"
 import { useIsMobile } from "@/hooks/use-mobile"
+import { useTheme } from "next-themes"
 import { useTrading } from "./trading-provider"
 import { ChartOverlay } from "./chart-overlay"
 import type { ChartApi } from "./chart-api"
@@ -50,6 +51,7 @@ interface Candle {
 export function ChartPanel() {
   const { activeSymbol, marketPrice, binanceConnected } = useTrading()
   const isMobile = useIsMobile()
+  const { resolvedTheme } = useTheme()
   const asset = getAsset(activeSymbol)
 
   // Default to 1h timeframe (index 5) so the chart always has deep history on mount,
@@ -116,6 +118,23 @@ export function ChartPanel() {
       seriesRef.current = null
     }
   }, [])
+
+  // ---- Update chart colors when theme changes. ---------------------------
+  useEffect(() => {
+    if (!chartRef.current) return
+    const isDark = resolvedTheme === "dark"
+    chartRef.current.applyOptions({
+      layout: {
+        textColor: isDark ? "#8b93a6" : "#5d6b82",
+      },
+      grid: {
+        vertLines: { color: isDark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.06)" },
+        horzLines: { color: isDark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.06)" },
+      },
+      rightPriceScale: { borderColor: isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.1)" },
+      timeScale: { borderColor: isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.1)" },
+    })
+  }, [resolvedTheme])
 
   // ---- Match the price-axis precision to the asset (so every pip shows). -
   useEffect(() => {

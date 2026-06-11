@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import { createSupabaseServiceClient } from "@/lib/supabase/service"
-import { ASSETS, twelveDataSymbol } from "@/lib/trading/assets"
+import { ASSETS } from "@/lib/trading/assets"
 
 export const dynamic = "force-dynamic" // FORCE DYNAMIC: Stop Vercel from caching this API response.
 
@@ -62,12 +62,9 @@ export async function GET(request: Request) {
       const tdSymbols = safeBatch
         .map(sym => {
           const asset = ASSETS.find(a => a.symbol === sym)
-          if (asset) {
-            const tdSym = twelveDataSymbol(asset)
-            if (tdSym) {
-              reverseMap[tdSym] = sym
-              return tdSym
-            }
+          if (asset?.twelveDataSymbol) {
+            reverseMap[asset.twelveDataSymbol] = sym
+            return asset.twelveDataSymbol
           }
           return null
         })

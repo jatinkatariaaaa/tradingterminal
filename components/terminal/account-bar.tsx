@@ -5,6 +5,14 @@ import { cn } from "@/lib/utils"
 import { formatMoney, formatPrice, getAsset } from "@/lib/trading/assets"
 import { useTrading } from "./trading-provider"
 import { Progress } from "@/components/ui/progress"
+import { useServerAccounts } from "@/hooks/use-server-accounts"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 
 function Metric({
   label,
@@ -99,7 +107,8 @@ function StatusBadges({
 }
 
 export function AccountBar() {
-  const { account, derived, binanceConnected, activeSymbol, marketPrice } = useTrading()
+  const { account, derived, binanceConnected, activeSymbol, marketPrice, accountId, setAccountId } = useTrading()
+  const { accounts } = useServerAccounts()
   const asset = getAsset(activeSymbol)
   const pnl = derived.floatingPnl
   const pnlTone = pnl > 0 ? "profit" : pnl < 0 ? "loss" : "default"
@@ -108,12 +117,27 @@ export function AccountBar() {
     <header className="border-b border-border bg-card">
       {/* ---- Desktop / tablet: single wrapped row ---- */}
       <div className="hidden flex-wrap items-center gap-x-8 gap-y-3 px-4 py-3 md:flex">
-        <div className="flex items-center gap-2">
-          <div className="flex h-7 w-7 items-center justify-center rounded-md bg-primary/15 text-primary">
-            <Activity className="h-4 w-4" />
+        <div className="flex items-center gap-3">
+          <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary/15 text-primary">
+            <Activity className="h-5 w-5" />
           </div>
           <div className="flex flex-col leading-tight">
-            <span className="text-sm font-semibold tracking-tight">The People Prop</span>
+            {accounts.length > 1 ? (
+              <Select value={accountId || undefined} onValueChange={setAccountId}>
+                <SelectTrigger className="h-auto border-none p-0 bg-transparent shadow-none hover:bg-transparent focus:ring-0 text-sm font-semibold tracking-tight">
+                  <SelectValue placeholder="Select Account" />
+                </SelectTrigger>
+                <SelectContent>
+                  {accounts.map((a) => (
+                    <SelectItem key={a.id} value={a.id}>
+                      {a.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : (
+              <span className="text-sm font-semibold tracking-tight">The People Prop</span>
+            )}
             <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
               Evaluation Terminal
             </span>
@@ -181,9 +205,9 @@ export function AccountBar() {
   )
 }
 
-/** Full account details panel — used in mobile Account tab. */
 export function MobileAccountDetails() {
-  const { account, derived, binanceConnected } = useTrading()
+  const { account, derived, binanceConnected, accountId, setAccountId } = useTrading()
+  const { accounts } = useServerAccounts()
   const pnl = derived.floatingPnl
   const pnlTone = pnl > 0 ? "profit" : pnl < 0 ? "loss" : "default"
 
@@ -194,9 +218,24 @@ export function MobileAccountDetails() {
         <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/15 text-primary">
           <Activity className="h-5 w-5" />
         </div>
-        <div className="flex flex-col leading-tight">
-          <span className="text-base font-semibold tracking-tight">The People Prop</span>
-          <span className="text-[11px] uppercase tracking-wider text-muted-foreground">
+        <div className="flex flex-col leading-tight min-w-0">
+          {accounts.length > 1 ? (
+            <Select value={accountId || undefined} onValueChange={setAccountId}>
+              <SelectTrigger className="h-auto border-none p-0 bg-transparent shadow-none hover:bg-transparent focus:ring-0 text-base font-semibold tracking-tight text-left max-w-[150px] overflow-hidden text-ellipsis whitespace-nowrap">
+                <SelectValue placeholder="Select Account" />
+              </SelectTrigger>
+              <SelectContent>
+                {accounts.map((a) => (
+                  <SelectItem key={a.id} value={a.id}>
+                    {a.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          ) : (
+            <span className="text-base font-semibold tracking-tight truncate">The People Prop</span>
+          )}
+          <span className="text-[11px] uppercase tracking-wider text-muted-foreground truncate">
             Evaluation Terminal
           </span>
         </div>

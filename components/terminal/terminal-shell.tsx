@@ -122,8 +122,6 @@ function Panel({ show, children }: { show: boolean; children: React.ReactNode })
 function DesktopLayout() {
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-background text-foreground">
-      <AccountBar />
-
       <main className="grid min-h-0 flex-1 grid-cols-1 gap-px bg-border lg:grid-cols-[260px_minmax(0,1fr)_320px]">
         {/* LEFT — Asset matrix */}
         <AssetPanel />

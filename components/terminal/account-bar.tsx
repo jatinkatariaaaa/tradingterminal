@@ -145,34 +145,7 @@ export function AccountBar() {
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-x-7 gap-y-3">
-          <Metric label="Balance" value={formatMoney(account.balance)} />
-          <Metric
-            label="Equity"
-            value={formatMoney(derived.equity)}
-            tone={derived.equity >= account.startingBalance ? "profit" : "loss"}
-          />
-          <Metric label="Floating P&L" value={formatMoney(pnl)} tone={pnlTone} />
-          <Metric label="Free Margin" value={formatMoney(derived.freeMargin)} />
-          <Metric
-            label="Margin Level"
-            value={derived.marginLevel == null ? "—" : `${derived.marginLevel.toFixed(0)}%`}
-            tone={derived.marginLevel != null && derived.marginLevel < 100 ? "loss" : "default"}
-          />
-        </div>
 
-        <div className="flex flex-wrap items-center gap-x-7 gap-y-3">
-          <DrawdownGauge
-            label="Daily Drawdown"
-            used={derived.dailyDrawdownUsed}
-            limit={derived.dailyDrawdownLimit}
-          />
-          <DrawdownGauge
-            label="Max Drawdown"
-            used={derived.maxDrawdownUsed}
-            limit={derived.maxDrawdownLimit}
-          />
-        </div>
 
         <div className="ml-auto flex items-center gap-3">
           <ThemeToggle />

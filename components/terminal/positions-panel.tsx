@@ -17,8 +17,9 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
+import { MobileAccountDetails } from "./account-bar"
 
-type Tab = "open" | "pending" | "history"
+type Tab = "open" | "pending" | "history" | "account"
 
 function DirBadge({ direction }: { direction: "buy" | "sell" }) {
   return (
@@ -51,10 +52,11 @@ export function PositionsPanel() {
   } = useTrading()
   const [tab, setTab] = useState<Tab>("open")
 
-  const tabs: { key: Tab; label: string; count: number }[] = [
+  const tabs: { key: Tab; label: string; count?: number }[] = [
     { key: "open", label: "Positions", count: openPositions.length },
     { key: "pending", label: "Pending", count: pendingOrders.length },
     { key: "history", label: "History", count: closedTrades.length },
+    { key: "account", label: "Account Details" },
   ]
 
   return (
@@ -73,7 +75,7 @@ export function PositionsPanel() {
             )}
           >
             {t.label}
-            <span className="ml-1 text-[10px] text-muted-foreground">{t.count}</span>
+            {t.count !== undefined && <span className="ml-1 text-[10px] text-muted-foreground">{t.count}</span>}
           </button>
         ))}
 
@@ -260,6 +262,12 @@ export function PositionsPanel() {
               )
             })}
           />
+        )}
+
+        {tab === "account" && (
+          <div className="h-full overflow-auto bg-background p-2">
+            <MobileAccountDetails />
+          </div>
         )}
       </div>
     </section>

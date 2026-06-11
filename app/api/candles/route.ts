@@ -11,7 +11,7 @@ import { getAsset, twelveDataSymbol } from "@/lib/trading/assets"
  * Sub-minute timeframes (5s, 15s) return empty — the client builds those live.
  */
 
-const TWELVEDATA_KEY = process.env.TWELVEDATA_API_KEY ?? ""
+const TWELVEDATA_KEY = process.env.TWELVE_DATA_KEY || process.env.TWELVEDATA_API_KEY || "b6a9bb0bed6f48919daded4e7b1cdef7"
 const BASE_URL = "https://api.twelvedata.com/time_series"
 
 interface Candle {

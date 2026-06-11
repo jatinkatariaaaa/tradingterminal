@@ -8,7 +8,7 @@ const _geist = Geist({ subsets: ["latin"] });
 const _geistMono = Geist_Mono({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: 'Apex Funded — Prop Firm Trading Terminal',
+  title: 'The People Prop — Prop Firm Trading Terminal',
   description:
     'Virtual prop-firm evaluation terminal with live Binance crypto feed, simulated forex & metals, draggable chart orders, and real-time drawdown risk tracking.',
   generator: 'v0.app',

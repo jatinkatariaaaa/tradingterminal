@@ -29,7 +29,7 @@ export async function POST(request: Request) {
     .from("accounts")
     .insert({
       user_id: auth.userId,
-      label: "Apex Challenge",
+      label: "The People Prop Challenge",
       phase: "challenge",
       status: "active",
       starting_balance: defaultBalance,

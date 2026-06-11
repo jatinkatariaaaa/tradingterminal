@@ -113,7 +113,7 @@ export function AccountBar() {
             <Activity className="h-4 w-4" />
           </div>
           <div className="flex flex-col leading-tight">
-            <span className="text-sm font-semibold tracking-tight">Apex Funded</span>
+            <span className="text-sm font-semibold tracking-tight">The People Prop</span>
             <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
               Evaluation Terminal
             </span>
@@ -195,7 +195,7 @@ export function MobileAccountDetails() {
           <Activity className="h-5 w-5" />
         </div>
         <div className="flex flex-col leading-tight">
-          <span className="text-base font-semibold tracking-tight">Apex Funded</span>
+          <span className="text-base font-semibold tracking-tight">The People Prop</span>
           <span className="text-[11px] uppercase tracking-wider text-muted-foreground">
             Evaluation Terminal
           </span>

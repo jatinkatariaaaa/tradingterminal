@@ -39,8 +39,6 @@ const SEED_CANDLES = 600
 // How many of the most-recent bars to frame on load; the rest stay scrollable.
 const VISIBLE_CANDLES = 140
 
-import { calculateSMA, calculateEMA } from "@/lib/trading/indicators"
-
 interface Candle {
   time: UTCTimestamp
   open: number
@@ -49,11 +47,6 @@ interface Candle {
   close: number
 }
 
-const INDICATORS = [
-  { id: "sma-20", label: "SMA 20", calc: (data: Candle[]) => calculateSMA(data, 20), color: "#2962FF" },
-  { id: "sma-50", label: "SMA 50", calc: (data: Candle[]) => calculateSMA(data, 50), color: "#FF6D00" },
-  { id: "ema-200", label: "EMA 200", calc: (data: Candle[]) => calculateEMA(data, 200), color: "#D50000" },
-]
 
 export function ChartPanel() {
   const { activeSymbol, marketPrice, binanceConnected } = useTrading()
@@ -64,14 +57,11 @@ export function ChartPanel() {
   // Default to 1h timeframe (index 5) so the chart always has deep history on mount,
   // preventing blank/empty charts on weekends when sub-minute ticks aren't streaming.
   const [timeframe, setTimeframe] = useState<number>(TIMEFRAMES[5].seconds)
-  const [activeIndicators, setActiveIndicators] = useState<string[]>([])
 
   const containerRef = useRef<HTMLDivElement>(null)
   const chartRef = useRef<IChartApi | null>(null)
   const seriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null)
   const chartApiRef = useRef<ChartApi | null>(null)
-  const indicatorSeriesRef = useRef(new Map<string, ISeriesApi<"Line">>())
-  const historyRef = useRef<Candle[]>([])
 
   // Candle bookkeeping (kept in refs so the tick effect stays cheap).
   const candleRef = useRef<Candle | null>(null)
@@ -172,30 +162,13 @@ export function ChartPanel() {
     seriesRef.current.setData([])
     chartRef.current?.priceScale("right").applyOptions({ autoScale: true })
     candleRef.current = null
-    historyRef.current = []
 
     const applyHistory = (history: Candle[]) => {
       if (cancelled || !seriesRef.current || seededKeyRef.current !== key) return
       seriesRef.current.setData(history)
-      historyRef.current = [...history]
-      
       if (history.length > 0) {
         candleRef.current = { ...history[history.length - 1] }
       }
-      
-      // Update indicators
-      const chart = chartRef.current
-      const map = indicatorSeriesRef.current
-      if (chart) {
-        for (const id of activeIndicators) {
-          const def = INDICATORS.find(i => i.id === id)
-          const series = map.get(id)
-          if (def && series) {
-            series.setData(history.length > 0 ? def.calc(history) : [])
-          }
-        }
-      }
-
       // Frame the most-recent VISIBLE_CANDLES bars (with a little room on the
       // right), leaving the deeper history pannable to the left.
       chartRef.current?.timeScale().setVisibleLogicalRange({
@@ -248,44 +221,9 @@ export function ChartPanel() {
       cancelled = true
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeSymbol, timeframe, marketPrice > 0, activeIndicators])
+  }, [activeSymbol, timeframe, marketPrice > 0])
 
-  // ---- Manage Active Indicators ------------------------------------------
-  useEffect(() => {
-    if (!chartRef.current) return
-    const chart = chartRef.current
-    const map = indicatorSeriesRef.current
-    
-    // Remove inactive indicators
-    for (const [id, series] of map.entries()) {
-      if (!activeIndicators.includes(id)) {
-        chart.removeSeries(series)
-        map.delete(id)
-      }
-    }
-    
-    // Add new indicators
-    for (const id of activeIndicators) {
-      if (!map.has(id)) {
-        const def = INDICATORS.find(i => i.id === id)
-        if (!def) continue
-        const series = chart.addLineSeries({
-          color: def.color,
-          lineWidth: 2,
-          crosshairMarkerVisible: false,
-          priceLineVisible: false,
-        })
-        map.set(id, series)
-        
-        // Seed with current history if available
-        if (historyRef.current.length > 0) {
-          series.setData(def.calc(historyRef.current))
-        }
-      }
-    }
-  }, [activeIndicators])
-
-  // ---- Live tick: update / roll the current candle & indicators. --------
+  // ---- Live tick: update / roll the current candle. ---------------------
   useEffect(() => {
     const series = seriesRef.current
     if (!series || seededKeyRef.current !== `${activeSymbol}:${timeframe}`) return
@@ -313,29 +251,13 @@ export function ChartPanel() {
       }
       candleRef.current = next
       series.update(next)
-      historyRef.current.push(next)
     } else if (bucket === cur.time) {
       cur.close = price
       cur.high = Math.max(cur.high, price)
       cur.low = Math.min(cur.low, price)
       series.update(cur)
-      if (historyRef.current.length > 0) {
-        historyRef.current[historyRef.current.length - 1] = { ...cur }
-      }
     }
-
-    // Update active indicators for live tick
-    for (const id of activeIndicators) {
-      const def = INDICATORS.find(i => i.id === id)
-      const lineSeries = indicatorSeriesRef.current.get(id)
-      if (def && lineSeries && historyRef.current.length > 0) {
-        const data = def.calc(historyRef.current)
-        if (data.length > 0) {
-          lineSeries.update(data[data.length - 1])
-        }
-      }
-    }
-  }, [marketPrice, activeSymbol, timeframe, activeIndicators])
+  }, [marketPrice, activeSymbol, timeframe])
 
   const feedLabel =
     asset.feed === "binance" ? "Binance WS" : asset.feed === "massive" ? "Massive + Sim" : "Internal Sim"
@@ -374,58 +296,27 @@ export function ChartPanel() {
         </div>
       )}
 
-      {/* Timeframe switcher & Indicators — scrollable on mobile */}
+      {/* Timeframe switcher — scrollable on mobile */}
       <div className={cn(
         "flex items-center gap-1 border-b border-border px-2 py-1",
         isMobile && "overflow-x-auto scrollbar-none"
       )}>
-        <div className="flex items-center gap-1 pr-2 border-r border-border/50">
-          {TIMEFRAMES.map((tf) => (
-            <button
-              key={tf.seconds}
-              type="button"
-              onClick={() => setTimeframe(tf.seconds)}
-              aria-pressed={timeframe === tf.seconds}
-              className={cn(
-                "shrink-0 rounded px-1.5 py-0.5 font-mono text-[11px] font-medium tabular-nums transition-colors",
-                timeframe === tf.seconds
-                  ? "bg-primary text-primary-foreground"
-                  : "text-muted-foreground hover:bg-secondary hover:text-foreground",
-              )}
-            >
-              {tf.label}
-            </button>
-          ))}
-        </div>
-        
-        <div className="flex items-center gap-1 pl-1">
-          {INDICATORS.map((ind) => {
-            const isActive = activeIndicators.includes(ind.id)
-            return (
-              <button
-                key={ind.id}
-                type="button"
-                onClick={() => {
-                  setActiveIndicators(prev => 
-                    isActive ? prev.filter(id => id !== ind.id) : [...prev, ind.id]
-                  )
-                }}
-                className={cn(
-                  "flex items-center gap-1.5 shrink-0 rounded px-1.5 py-0.5 font-mono text-[11px] font-medium tabular-nums transition-colors",
-                  isActive
-                    ? "bg-secondary text-foreground"
-                    : "text-muted-foreground hover:bg-secondary hover:text-foreground",
-                )}
-              >
-                <div 
-                  className="w-1.5 h-1.5 rounded-full" 
-                  style={{ backgroundColor: isActive ? ind.color : "transparent", border: `1px solid ${ind.color}` }} 
-                />
-                {ind.label}
-              </button>
-            )
-          })}
-        </div>
+        {TIMEFRAMES.map((tf) => (
+          <button
+            key={tf.seconds}
+            type="button"
+            onClick={() => setTimeframe(tf.seconds)}
+            aria-pressed={timeframe === tf.seconds}
+            className={cn(
+              "shrink-0 rounded px-1.5 py-0.5 font-mono text-[11px] font-medium tabular-nums transition-colors",
+              timeframe === tf.seconds
+                ? "bg-primary text-primary-foreground"
+                : "text-muted-foreground hover:bg-secondary hover:text-foreground",
+            )}
+          >
+            {tf.label}
+          </button>
+        ))}
       </div>
 
       {/* Chart + interaction overlay */}

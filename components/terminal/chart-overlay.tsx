@@ -47,6 +47,7 @@ export function ChartOverlay({ chartApiRef }: { chartApiRef: ChartApiRef }) {
     setManageTP,
     selectedPositionId,
     beginManage,
+    modifyPosition,
   } = useTrading()
   const asset = getAsset(activeSymbol)
 
@@ -201,6 +202,12 @@ export function ChartOverlay({ chartApiRef }: { chartApiRef: ChartApiRef }) {
   const rafRef = useRef(0)
   const pendingRef = useRef<number | null>(null)
 
+  // Keep latest state for onUp without triggering re-binds
+  const stateRefs = useRef({ managePositionId, manageSL, manageTP, modifyPosition })
+  useEffect(() => {
+    stateRefs.current = { managePositionId, manageSL, manageTP, modifyPosition }
+  }, [managePositionId, manageSL, manageTP, modifyPosition])
+
   const applyPending = useCallback(() => {
     rafRef.current = 0
     const key = dragKeyRef.current
@@ -229,8 +236,18 @@ export function ChartOverlay({ chartApiRef }: { chartApiRef: ChartApiRef }) {
       pendingRef.current = Number(price.toFixed(asset.digits))
       if (!rafRef.current) rafRef.current = requestAnimationFrame(applyPending)
     }
-    const onUp = () => {
+    const onUp = async () => {
+      const key = dragKeyRef.current
       dragKeyRef.current = null
+      
+      // Auto-save managed position SL/TP when drag finishes
+      if (key === "manage-sl" || key === "manage-tp") {
+        const { managePositionId, manageSL, manageTP, modifyPosition } = stateRefs.current
+        if (managePositionId) {
+          // Fire and forget server sync
+          modifyPosition(managePositionId, manageSL, manageTP).catch(console.error)
+        }
+      }
     }
     window.addEventListener("mousemove", onMove)
     window.addEventListener("mouseup", onUp)

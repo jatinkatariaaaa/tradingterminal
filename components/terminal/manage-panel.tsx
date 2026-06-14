@@ -135,7 +135,7 @@ export function ManagePanel() {
         <p className="rounded-md border border-primary/30 bg-primary/5 px-2.5 py-2 text-[11px] text-muted-foreground">
           Drag the <span className="font-medium" style={{ color: "var(--loss)" }}>SL</span> and{" "}
           <span className="font-medium" style={{ color: "var(--profit)" }}>TP</span> lines on the
-          chart, or set exact prices below. Click Modify to apply.
+          chart to automatically adjust your position.
         </p>
 
         {/* Stop Loss */}

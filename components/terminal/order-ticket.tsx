@@ -86,8 +86,8 @@ export function OrderTicket() {
 
   const notional = volume * asset.contractSize * marketPrice * usdRate
   const marginReq = marginRequired(asset, volume, entryFill, prices)
-  // Pre-trade guard for market orders (pending lock margin only at fill).
-  const insufficientMargin = draft.type === "market" && marginReq > derived.freeMargin
+  // Pre-trade guard to ensure sufficient margin for all order types.
+  const insufficientMargin = marginReq > derived.freeMargin
   const tpPreview = draft.tpEnabled ? pnlAt(draft.tpPrice) : null
   const slPreview = draft.slEnabled ? pnlAt(draft.slPrice) : null
 

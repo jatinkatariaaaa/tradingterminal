@@ -102,9 +102,33 @@ export function OrderTicket() {
   const [busy, setBusy] = useState(false)
   const timers = useRef<ReturnType<typeof setTimeout>[]>([])
 
+  // Auto Risk state
+  const [autoRisk, setAutoRisk] = useState(false)
+  const [riskPct, setRiskPct] = useState(1.0)
+
   useEffect(() => {
     return () => timers.current.forEach(clearTimeout)
   }, [])
+
+  // Auto-Lot Calculation
+  useEffect(() => {
+    if (!autoRisk || !draft.slEnabled || !draft.slPrice) return
+    
+    const riskUsd = account.balance * (riskPct / 100)
+    const entry = draft.type === "market" ? (draft.direction === "buy" ? ask : bid) : draft.triggerPrice
+    const distance = Math.abs(entry - draft.slPrice)
+    if (distance <= 0) return
+
+    const lossPerLot = distance * asset.contractSize * usdRate
+    if (lossPerLot <= 0) return
+
+    let calculatedLots = riskUsd / lossPerLot
+    calculatedLots = Math.max(asset.lotStep, roundToLotStep(calculatedLots, asset.lotStep))
+    
+    if (draft.volume !== calculatedLots) {
+      setDraft({ volume: calculatedLots })
+    }
+  }, [autoRisk, riskPct, draft.slEnabled, draft.slPrice, draft.type, draft.direction, draft.triggerPrice, ask, bid, account.balance, asset.contractSize, asset.lotStep, usdRate, draft.volume, setDraft])
 
   const handleExecute = useCallback(async () => {
     if (busy) return // ignore rapid double taps
@@ -193,40 +217,83 @@ export function OrderTicket() {
           ))}
         </div>
 
-        {/* Volume */}
+        {/* Volume & Auto Risk */}
         <div className="flex flex-col gap-1.5">
-          <Label className="text-xs text-muted-foreground">Volume (lots)</Label>
-          <div className="flex items-center gap-2">
-            <Button
-              type="button"
-              variant="secondary"
-              size="icon"
-              className="h-9 w-9 shrink-0"
-              onClick={() => adjustVolume(-asset.lotStep * 10)}
-            >
-              <Minus className="h-4 w-4" />
-            </Button>
-            <Input
-              type="number"
-              step={asset.lotStep}
-              min={asset.lotStep}
-              value={draft.volume}
-              onChange={(e) => setDraft({ volume: Math.max(asset.lotStep, Number(e.target.value)) })}
-              className="h-9 bg-secondary text-center font-mono text-sm tabular-nums"
-            />
-            <Button
-              type="button"
-              variant="secondary"
-              size="icon"
-              className="h-9 w-9 shrink-0"
-              onClick={() => adjustVolume(asset.lotStep * 10)}
-            >
-              <Plus className="h-4 w-4" />
-            </Button>
+          <div className="flex items-center justify-between">
+            <Label className="text-xs text-muted-foreground">Volume (lots)</Label>
+            <div className="flex items-center gap-1.5">
+              <Checkbox
+                id="autoRisk"
+                checked={autoRisk}
+                onCheckedChange={(c) => setAutoRisk(c === true)}
+              />
+              <Label htmlFor="autoRisk" className="text-[10px] uppercase tracking-wider text-muted-foreground cursor-pointer">
+                Auto Risk %
+              </Label>
+            </div>
           </div>
-          {volume !== draft.volume && (
+          
+          <div className="flex items-center gap-2">
+            {!autoRisk ? (
+              <>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="icon"
+                  className="h-9 w-9 shrink-0"
+                  onClick={() => adjustVolume(-asset.lotStep * 10)}
+                >
+                  <Minus className="h-4 w-4" />
+                </Button>
+                <Input
+                  type="number"
+                  step={asset.lotStep}
+                  min={asset.lotStep}
+                  value={draft.volume}
+                  onChange={(e) => setDraft({ volume: Math.max(asset.lotStep, Number(e.target.value)) })}
+                  className="h-9 bg-secondary text-center font-mono text-sm tabular-nums"
+                />
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="icon"
+                  className="h-9 w-9 shrink-0"
+                  onClick={() => adjustVolume(asset.lotStep * 10)}
+                >
+                  <Plus className="h-4 w-4" />
+                </Button>
+              </>
+            ) : (
+              <div className="flex w-full items-center gap-2">
+                <Input
+                  type="number"
+                  step={0.1}
+                  min={0.1}
+                  value={riskPct}
+                  onChange={(e) => setRiskPct(Math.max(0.1, Number(e.target.value)))}
+                  className="h-9 bg-secondary font-mono text-sm tabular-nums"
+                  placeholder="e.g. 1.0"
+                />
+                <div className="flex h-9 shrink-0 items-center justify-center rounded-md bg-secondary px-3 font-mono text-sm text-muted-foreground">
+                  %
+                </div>
+              </div>
+            )}
+          </div>
+          
+          {!autoRisk && volume !== draft.volume && (
             <p className="text-[11px] text-muted-foreground">
               Rounded to {volume} lots (step {asset.lotStep}).
+            </p>
+          )}
+          {autoRisk && !draft.slEnabled && (
+            <p className="text-[11px] text-amber-500 flex items-center gap-1">
+              <AlertTriangle className="w-3 h-3" /> Enable Stop Loss for Auto Risk.
+            </p>
+          )}
+          {autoRisk && draft.slEnabled && (
+            <p className="text-[11px] text-muted-foreground">
+              Calculated size: <span className="font-mono text-foreground">{draft.volume}</span> lots
             </p>
           )}
         </div>

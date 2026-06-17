@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, useRef } from "react"
 import { CandlestickChart, LayoutList, Wallet, User } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useIsMobile } from "@/hooks/use-mobile"
@@ -30,13 +30,22 @@ const TABS: { key: MobileTab; label: string; icon: typeof CandlestickChart }[] =
 
 function MobileLayout() {
   const [tab, setTab] = useState<MobileTab>("chart")
-  const { managePositionId } = useTradingState()
+  const { managePositionId, activeSymbol } = useTradingState()
+  const prevSymbolRef = useRef(activeSymbol)
 
   // When the trader taps "manage" on a position, switch to chart tab where
   // the manage panel overlays the order panel.
   useEffect(() => {
     if (managePositionId) setTab("chart")
   }, [managePositionId])
+
+  // When active symbol changes (via watchlist or position click), switch to chart tab
+  useEffect(() => {
+    if (activeSymbol !== prevSymbolRef.current) {
+      setTab("chart")
+      prevSymbolRef.current = activeSymbol
+    }
+  }, [activeSymbol])
 
   return (
     <div className="flex h-[100dvh] flex-col overflow-hidden bg-background text-foreground">

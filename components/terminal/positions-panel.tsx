@@ -50,6 +50,7 @@ export function PositionsPanel() {
     managePositionId,
     selectedPositionId,
     setSelectedPositionId,
+    setActiveSymbol,
   } = useTrading()
   const isMobile = useIsMobile()
   const [tab, setTab] = useState<Tab>("open")
@@ -139,7 +140,12 @@ export function PositionsPanel() {
               return (
                 <tr
                   key={p.id}
-                  onClick={() => setSelectedPositionId(isSelected ? null : p.id)}
+                  onClick={() => {
+                    setSelectedPositionId(isSelected ? null : p.id)
+                    if (!isSelected) {
+                      setActiveSymbol(p.symbol)
+                    }
+                  }}
                   className={cn(
                     "border-b border-border/50 hover:bg-accent/40 cursor-pointer transition-colors",
                     isSelected && !isManaging && "bg-primary/5",

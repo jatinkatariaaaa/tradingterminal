@@ -19,6 +19,7 @@ interface OverlayItem {
   money: number | null
   drag: DragKey | null
   onDragStart?: () => void
+  onClick?: () => void
 }
 
 const DARK = "oklch(0.16 0.012 255)"
@@ -92,6 +93,11 @@ export function ChartOverlay({ chartApiRef }: { chartApiRef: ChartApiRef }) {
       dashed: false,
       money: pnlFor(p, marketPrice),
       drag: null,
+      onClick: () => {
+        if (!isManaged) {
+          beginManage(p.id)
+        }
+      }
     })
 
     // SL/TP lines for this position.
@@ -286,9 +292,11 @@ export function ChartOverlay({ chartApiRef }: { chartApiRef: ChartApiRef }) {
                 }
               : undefined
           }
+          onClick={item.onClick}
           className={
             "absolute inset-x-0 -translate-y-1/2" +
-            (item.drag ? " group pointer-events-auto cursor-ns-resize py-1.5" : "")
+            (item.drag ? " group pointer-events-auto cursor-ns-resize py-1.5" : "") +
+            (!item.drag && item.onClick ? " group pointer-events-auto cursor-pointer py-1.5" : "")
           }
           style={{ top: "-9999px", visibility: "hidden" }}
         >

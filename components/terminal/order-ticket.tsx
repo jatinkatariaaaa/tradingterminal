@@ -48,12 +48,14 @@ function LocalNumberInput({
   placeholder?: string
 }) {
   const [local, setLocal] = useState(value.toString())
+  const prevValue = useRef(value)
   
   useEffect(() => {
-    if (Number(local) !== value) {
+    if (value !== prevValue.current) {
       setLocal(value.toString())
+      prevValue.current = value
     }
-  }, [value, local])
+  }, [value])
 
   return (
     <Input

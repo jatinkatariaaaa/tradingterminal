@@ -30,6 +30,56 @@ const ORDER_TYPES: { value: OrderType; label: string }[] = [
   { value: "stop", label: "Stop" },
 ]
 
+function LocalNumberInput({
+  value,
+  onChange,
+  onBlurClamp,
+  step,
+  min,
+  className,
+  placeholder,
+}: {
+  value: number
+  onChange: (v: number) => void
+  onBlurClamp?: number
+  step?: number
+  min?: number
+  className?: string
+  placeholder?: string
+}) {
+  const [local, setLocal] = useState(value.toString())
+  
+  useEffect(() => {
+    if (Number(local) !== value) {
+      setLocal(value.toString())
+    }
+  }, [value, local])
+
+  return (
+    <Input
+      type="number"
+      step={step}
+      min={min}
+      value={local}
+      onChange={(e) => {
+        setLocal(e.target.value)
+        if (e.target.value !== "") {
+          onChange(Number(e.target.value))
+        }
+      }}
+      onBlur={() => {
+        if (local === "" || (onBlurClamp !== undefined && Number(local) < onBlurClamp)) {
+          const clamped = onBlurClamp !== undefined ? onBlurClamp : 0
+          setLocal(clamped.toString())
+          onChange(clamped)
+        }
+      }}
+      className={className}
+      placeholder={placeholder}
+    />
+  )
+}
+
 function PriceField({
   label,
   value,
@@ -51,11 +101,10 @@ function PriceField({
       >
         {label}
       </Label>
-      <Input
-        type="number"
-        step={step}
+      <LocalNumberInput
         value={value}
-        onChange={(e) => onChange(Number(e.target.value))}
+        onChange={onChange}
+        step={step}
         className="h-8 w-32 bg-secondary font-mono text-right text-sm tabular-nums"
       />
     </div>
@@ -245,12 +294,12 @@ export function OrderTicket() {
                 >
                   <Minus className="h-4 w-4" />
                 </Button>
-                <Input
-                  type="number"
+                <LocalNumberInput
                   step={asset.lotStep}
                   min={asset.lotStep}
                   value={draft.volume}
-                  onChange={(e) => setDraft({ volume: Math.max(asset.lotStep, Number(e.target.value)) })}
+                  onChange={(v) => setDraft({ volume: v })}
+                  onBlurClamp={asset.lotStep}
                   className="h-9 bg-secondary text-center font-mono text-sm tabular-nums"
                 />
                 <Button
@@ -265,12 +314,12 @@ export function OrderTicket() {
               </>
             ) : (
               <div className="flex w-full items-center gap-2">
-                <Input
-                  type="number"
+                <LocalNumberInput
                   step={0.1}
                   min={0.1}
                   value={riskPct}
-                  onChange={(e) => setRiskPct(Math.max(0.1, Number(e.target.value)))}
+                  onChange={(v) => setRiskPct(v)}
+                  onBlurClamp={0.1}
                   className="h-9 bg-secondary font-mono text-sm tabular-nums"
                   placeholder="e.g. 1.0"
                 />
@@ -587,12 +636,12 @@ export function MobileOrderPanel() {
           >
             <Minus className="h-3 w-3" />
           </button>
-          <Input
-            type="number"
+          <LocalNumberInput
             step={asset.lotStep}
             min={asset.lotStep}
             value={draft.volume}
-            onChange={(e) => setDraft({ volume: Math.max(asset.lotStep, Number(e.target.value)) })}
+            onChange={(v) => setDraft({ volume: v })}
+            onBlurClamp={asset.lotStep}
             className="h-7 w-16 bg-secondary text-center font-mono text-xs tabular-nums px-1"
           />
           <button

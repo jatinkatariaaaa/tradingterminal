@@ -148,6 +148,8 @@ async function tickAccount(
       if (!m) continue // no live price — SQL closes it flat at open price
       marks.push({ position_id: p.id, exit_fill: m.exitFill, gross_pnl: m.grossPnl, commission: m.commission })
     }
+    
+    // Atomically close all positions and mark as breached
     await rpcBreachAccount({
       accountId,
       equity,
@@ -155,6 +157,24 @@ async function tickAccount(
       reason: floor.reason(equity),
       marks,
     })
+
+    // CRM WEBHOOK INTEGRATION
+    // Notify the CRM website that this account has breached so it can update its own tracking
+    const CRM_WEBHOOK_URL = process.env.CRM_WEBHOOK_URL || "https://thepeopleprop.live/api/terminal-webhook";
+    try {
+      fetch(CRM_WEBHOOK_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          login: accountId,
+          current_balance: balance,
+          current_equity: equity
+        })
+      }).catch(err => console.error("Failed to notify CRM webhook:", err.message));
+    } catch (e) {
+       // Ignore fetch errors so the worker doesn't crash
+    }
+    
     return
   }
 

@@ -17,5 +17,13 @@ export function createSupabaseBrowserClient() {
       "Missing NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY. See .env.example.",
     )
   }
-  return createBrowserClient(url, anonKey)
+  const cookieDomain = process.env.NEXT_PUBLIC_COOKIE_DOMAIN;
+  return createBrowserClient(url, anonKey, {
+    cookieOptions: cookieDomain ? {
+      domain: cookieDomain,
+      path: "/",
+      sameSite: "lax",
+      secure: process.env.NODE_ENV === "production",
+    } : undefined
+  })
 }

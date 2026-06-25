@@ -19,13 +19,16 @@ export async function createSupabaseServerClient() {
     )
   }
   const cookieStore = await cookies()
+  const cookieDomain = process.env.NEXT_PUBLIC_COOKIE_DOMAIN;
+  const cookieOptions = cookieDomain ? { domain: cookieDomain } : undefined;
+  
   return createServerClient(url, anonKey, {
     cookies: {
       getAll: () => cookieStore.getAll(),
       setAll: (toSet: any[]) => {
         try {
           for (const { name, value, options } of toSet) {
-            cookieStore.set(name, value, options)
+            cookieStore.set(name, value, cookieDomain ? { ...options, domain: cookieDomain } : options)
           }
         } catch {
           // setAll can be called from a Server Component where cookies are
@@ -33,6 +36,7 @@ export async function createSupabaseServerClient() {
         }
       },
     },
+    cookieOptions,
   })
 }
 

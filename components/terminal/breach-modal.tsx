@@ -50,9 +50,6 @@ export function BreachModal() {
           </div>
         </div>
 
-        <Button onClick={resetAccount} className="w-full">
-          Reset Evaluation
-        </Button>
       </DialogContent>
     </Dialog>
   )

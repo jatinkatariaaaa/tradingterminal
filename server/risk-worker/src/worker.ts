@@ -23,6 +23,7 @@ import {
   fetchAllWorkingOrders,
   rpcApplyRiskTick,
   rpcBreachAccount,
+  rpcPassAccount,
   rpcClosePosition,
   rpcFillOrder,
   type AccountRow,
@@ -180,7 +181,42 @@ async function tickAccount(
 
   // No breach: let SQL update equity/highwater, roll the 5pm ET daily baseline,
   // and detect the profit target.
-  await rpcApplyRiskTick(accountId, equity)
+  const oldStatus = account.status;
+  const newStatus = await rpcApplyRiskTick(accountId, equity)
+  
+  if (oldStatus !== 'passed' && newStatus === 'passed') {
+    const marks: BreachMark[] = []
+    for (const p of survivors) {
+      const m = markPosition(
+        { symbol: p.symbol, direction: p.direction, volume: p.volume, openPrice: p.open_price, contractSize: p.contract_size },
+        prices,
+      )
+      if (!m) continue
+      marks.push({ position_id: p.id, exit_fill: m.exitFill, gross_pnl: m.grossPnl, commission: m.commission })
+    }
+    
+    // Atomically close all positions and lock equity=balance
+    await rpcPassAccount({
+      accountId,
+      equity,
+      marks,
+    });
+    
+    // CRM WEBHOOK INTEGRATION
+    const CRM_WEBHOOK_URL = process.env.CRM_WEBHOOK_URL || "https://thepeopleprop.live/api/terminal-webhook";
+    try {
+      fetch(CRM_WEBHOOK_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          login: accountId,
+          current_balance: balance,
+          current_equity: equity,
+          status: 'passed'
+        })
+      }).catch(err => console.error("Failed to notify CRM webhook:", err.message));
+    } catch (e) {}
+  }
 }
 
 /**

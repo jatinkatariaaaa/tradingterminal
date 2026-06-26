@@ -236,3 +236,16 @@ export async function rpcBreachAccount(args: {
   })
   if (error) throw error
 }
+
+export async function rpcPassAccount(args: {
+  accountId: string
+  equity: number
+  marks: BreachMark[]
+}): Promise<void> {
+  const { error } = await supabase.rpc("pass_account", {
+    p_account_id: args.accountId,
+    p_equity: args.equity,
+    p_marks: args.marks,
+  })
+  if (error) throw error
+}

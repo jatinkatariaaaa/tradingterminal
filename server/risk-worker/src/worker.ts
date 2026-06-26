@@ -21,6 +21,7 @@ import {
   fetchTradableAccounts,
   fetchAllPositions,
   fetchAllWorkingOrders,
+  fetchAccountSnapshot,
   rpcApplyRiskTick,
   rpcBreachAccount,
   rpcPassAccount,
@@ -28,6 +29,7 @@ import {
   rpcFillOrder,
   type AccountRow,
   type BreachMark,
+  type OrderRow,
   type PositionRow,
 } from "./db.js"
 import {
@@ -43,6 +45,42 @@ import {
 
 const TICK_MS = Number(process.env.RISK_TICK_MS ?? "500")
 const FX_POLL_MS = Number(process.env.FINNHUB_POLL_MS ?? process.env.FX_POLL_MS ?? "15000")
+const CRM_WEBHOOK_URL = process.env.CRM_WEBHOOK_URL || "https://thepeopleprop.live/api/terminal-webhook"
+
+type CrmAccountStatus = "passed" | "breached"
+
+async function postCrmWebhook(payload: {
+  login: string
+  terminal_account_id: string
+  current_balance: number
+  current_equity: number
+  status: CrmAccountStatus
+}): Promise<void> {
+  const headers: Record<string, string> = { "Content-Type": "application/json" }
+  const secret = process.env.TERMINAL_WEBHOOK_SECRET || process.env.CRM_WEBHOOK_SECRET
+  if (secret) headers.Authorization = `Bearer ${secret}`
+
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), 8000)
+
+  try {
+    const response = await fetch(CRM_WEBHOOK_URL, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(payload),
+      signal: controller.signal,
+    })
+
+    if (!response.ok) {
+      const details = await response.text().catch(() => "")
+      console.error(`[crm-webhook] ${payload.status} notification failed: ${response.status} ${details}`)
+    }
+  } catch (err) {
+    console.error("[crm-webhook] notification error:", (err as Error).message)
+  } finally {
+    clearTimeout(timeoutId)
+  }
+}
 
 /** SL/TP exit level for a position given the live mid, or null if untouched. */
 function slTpExit(p: PositionRow, mid: number): { exit: number; reason: "tp" | "sl" } | null {
@@ -149,7 +187,7 @@ async function tickAccount(
       if (!m) continue // no live price — SQL closes it flat at open price
       marks.push({ position_id: p.id, exit_fill: m.exitFill, gross_pnl: m.grossPnl, commission: m.commission })
     }
-    
+
     // Atomically close all positions and mark as breached
     await rpcBreachAccount({
       accountId,
@@ -159,32 +197,24 @@ async function tickAccount(
       marks,
     })
 
-    // CRM WEBHOOK INTEGRATION
-    // Notify the CRM website that this account has breached so it can update its own tracking
-    const CRM_WEBHOOK_URL = process.env.CRM_WEBHOOK_URL || "https://thepeopleprop.live/api/terminal-webhook";
-    try {
-      fetch(CRM_WEBHOOK_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          login: accountId,
-          current_balance: balance,
-          current_equity: equity
-        })
-      }).catch(err => console.error("Failed to notify CRM webhook:", err.message));
-    } catch (e) {
-       // Ignore fetch errors so the worker doesn't crash
-    }
-    
+    const breachedAccount = await fetchAccountSnapshot(accountId)
+    await postCrmWebhook({
+      login: accountId,
+      terminal_account_id: accountId,
+      current_balance: breachedAccount.balance,
+      current_equity: breachedAccount.equity,
+      status: "breached",
+    })
+
     return
   }
 
   // No breach: let SQL update equity/highwater, roll the 5pm ET daily baseline,
   // and detect the profit target.
-  const oldStatus = account.status;
+  const oldStatus = account.status
   const newStatus = await rpcApplyRiskTick(accountId, equity)
-  
-  if (oldStatus !== 'passed' && newStatus === 'passed') {
+
+  if (oldStatus !== "passed" && newStatus === "passed") {
     const marks: BreachMark[] = []
     for (const p of survivors) {
       const m = markPosition(
@@ -194,28 +224,21 @@ async function tickAccount(
       if (!m) continue
       marks.push({ position_id: p.id, exit_fill: m.exitFill, gross_pnl: m.grossPnl, commission: m.commission })
     }
-    
+
     // Atomically close all positions and lock equity=balance
-    await rpcPassAccount({
+    const passedAccount = await rpcPassAccount({
       accountId,
       equity,
       marks,
-    });
-    
-    // CRM WEBHOOK INTEGRATION
-    const CRM_WEBHOOK_URL = process.env.CRM_WEBHOOK_URL || "https://thepeopleprop.live/api/terminal-webhook";
-    try {
-      fetch(CRM_WEBHOOK_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          login: accountId,
-          current_balance: balance,
-          current_equity: equity,
-          status: 'passed'
-        })
-      }).catch(err => console.error("Failed to notify CRM webhook:", err.message));
-    } catch (e) {}
+    })
+
+    await postCrmWebhook({
+      login: accountId,
+      terminal_account_id: accountId,
+      current_balance: passedAccount.balance,
+      current_equity: passedAccount.equity,
+      status: "passed",
+    })
   }
 }
 
@@ -254,14 +277,16 @@ async function tick(): Promise<void> {
 
     const positionsByAccount: Record<string, PositionRow[]> = {}
     for (const p of allPositions) {
-      if (!positionsByAccount[p.account_id]) positionsByAccount[p.account_id] = []
-      positionsByAccount[p.account_id].push(p)
+      const accountPositions = positionsByAccount[p.account_id] ?? []
+      accountPositions.push(p)
+      positionsByAccount[p.account_id] = accountPositions
     }
 
     const ordersByAccount: Record<string, OrderRow[]> = {}
     for (const o of allOrders) {
-      if (!ordersByAccount[o.account_id]) ordersByAccount[o.account_id] = []
-      ordersByAccount[o.account_id].push(o)
+      const accountOrders = ordersByAccount[o.account_id] ?? []
+      accountOrders.push(o)
+      ordersByAccount[o.account_id] = accountOrders
     }
 
     for (const a of accounts) {

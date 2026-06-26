@@ -25,6 +25,7 @@ export interface AccountRow {
   status: AccountStatus
   phase: "challenge" | "funded"
   balance: number
+  equity: number
   starting_balance: number
   daily_start_balance: number
   max_daily_drawdown: number
@@ -66,11 +67,23 @@ export async function fetchTradableAccounts(): Promise<AccountRow[]> {
   const { data, error } = await supabase
     .from("accounts")
     .select(
-      "id, status, phase, balance, starting_balance, daily_start_balance, max_daily_drawdown, max_overall_drawdown, profit_target, last_daily_reset_at",
+      "id, status, phase, balance, equity, starting_balance, daily_start_balance, max_daily_drawdown, max_overall_drawdown, profit_target, last_daily_reset_at",
     )
     .in("status", ["active", "funded"])
   if (error) throw error
   return (data ?? []) as AccountRow[]
+}
+
+export async function fetchAccountSnapshot(accountId: string): Promise<AccountRow> {
+  const { data, error } = await supabase
+    .from("accounts")
+    .select(
+      "id, status, phase, balance, equity, starting_balance, daily_start_balance, max_daily_drawdown, max_overall_drawdown, profit_target, last_daily_reset_at",
+    )
+    .eq("id", accountId)
+    .single()
+  if (error) throw error
+  return data as AccountRow
 }
 
 export async function fetchPositions(accountId: string): Promise<PositionRow[]> {
@@ -241,11 +254,12 @@ export async function rpcPassAccount(args: {
   accountId: string
   equity: number
   marks: BreachMark[]
-}): Promise<void> {
-  const { error } = await supabase.rpc("pass_account", {
+}): Promise<AccountRow> {
+  const { data, error } = await supabase.rpc("pass_account", {
     p_account_id: args.accountId,
     p_equity: args.equity,
     p_marks: args.marks,
   })
   if (error) throw error
+  return data as AccountRow
 }

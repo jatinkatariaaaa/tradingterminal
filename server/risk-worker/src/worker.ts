@@ -245,7 +245,8 @@ async function tickAccount(
 /**
  * The breach floor an account's equity has crossed, if any. Mirrors the SQL in
  * apply_risk_tick so the worker can decide before calling breach_account.
- * Overall drawdown is checked first (it is the harder limit).
+ * The higher floor wins, so a 5% daily limit breaches before a 10% overall
+ * limit on a normal account.
  */
 function breachFloor(
   a: AccountRow,

@@ -1,18 +1,22 @@
 import { NextResponse } from "next/server";
 import { createSupabaseServiceClient } from "@/lib/supabase/service";
 
-// Ensure this matches the CRM's API Key
+// Accept ADMIN_API_KEY from env, or fall back to the known CRM key
 const ADMIN_API_KEY = process.env.ADMIN_API_KEY || "tpp-admin-secret-key";
+const CRM_KNOWN_KEY = "220BPHARM010";
 
 export async function POST(request: Request) {
   try {
-    const apiKey = request.headers.get("x-api-key");
-    if (apiKey !== ADMIN_API_KEY) {
+    const apiKeyHeader = request.headers.get("x-api-key");
+    const bearerToken = request.headers.get("Authorization")?.replace("Bearer ", "");
+    const providedKey = apiKeyHeader || bearerToken;
+    
+    if (providedKey !== ADMIN_API_KEY && providedKey !== CRM_KNOWN_KEY) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const body = await request.json();
-    const { userId, accountSize, rules } = body;
+    const { userId, accountSize, rules, programKey } = body;
 
     if (!userId || !accountSize || !rules) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
@@ -29,7 +33,7 @@ export async function POST(request: Request) {
       .from("accounts")
       .insert({
         user_id: userId,
-        label: `TPP ${accountSize.toLocaleString()} Challenge`,
+        label: `TPP $${Number(accountSize).toLocaleString()} Challenge`,
         phase: "challenge",
         status: "active",
         starting_balance: accountSize,
@@ -40,6 +44,7 @@ export async function POST(request: Request) {
         max_daily_drawdown: maxDailyDrawdown,
         max_overall_drawdown: maxOverallDrawdown,
         profit_target: profitTarget,
+        program_key: programKey || null,
       })
       .select()
       .single();

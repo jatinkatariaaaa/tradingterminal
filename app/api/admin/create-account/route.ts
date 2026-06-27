@@ -21,7 +21,7 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    const { userId, accountSize, rules, programKey, phase, status, label, businessAccountId } = body;
+    const { userId, accountSize, rules, programKey, phase, status, label } = body;
 
     if (!userId || !accountSize || !rules) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
@@ -52,7 +52,9 @@ export async function POST(request: Request) {
         max_overall_drawdown: maxOverallDrawdown,
         profit_target: profitTarget,
         program_key: programKey || null,
-        business_account_id: businessAccountId || null,
+        // CRM links this after its trading_accounts row exists. Setting it here
+        // can violate the FK because the CRM row has not been inserted yet.
+        business_account_id: null,
       })
       .select()
       .single();

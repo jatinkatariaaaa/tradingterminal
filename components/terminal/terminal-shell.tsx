@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState, useRef } from "react"
-import { CandlestickChart, LayoutList, Wallet, User } from "lucide-react"
+import { CandlestickChart, LayoutList, Wallet, User, X } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { useTradingState } from "./trading-provider"
@@ -32,12 +32,7 @@ function MobileLayout() {
   const [tab, setTab] = useState<MobileTab>("chart")
   const { managePositionId, activeSymbol } = useTradingState()
   const prevSymbolRef = useRef(activeSymbol)
-
-  // When the trader taps "manage" on a position, switch to chart tab where
-  // the manage panel overlays the order panel.
-  useEffect(() => {
-    if (managePositionId) setTab("chart")
-  }, [managePositionId])
+  const [showFullManage, setShowFullManage] = useState(false)
 
   // When active symbol changes (via watchlist or position click), switch to chart tab
   useEffect(() => {
@@ -46,6 +41,11 @@ function MobileLayout() {
       prevSymbolRef.current = activeSymbol
     }
   }, [activeSymbol])
+
+  // Close full manage overlay when the managed position is cleared
+  useEffect(() => {
+    if (!managePositionId) setShowFullManage(false)
+  }, [managePositionId])
 
   return (
     <div className="flex h-[100dvh] flex-col overflow-hidden bg-background text-foreground">
@@ -61,15 +61,9 @@ function MobileLayout() {
             <div className="min-h-0 flex-1">
               <ChartPanel />
             </div>
-            {/* Compact order execution below chart — or manage panel if managing */}
+            {/* Compact order execution below chart — always visible */}
             <div className="shrink-0">
-              {managePositionId ? (
-                <div className="max-h-[45dvh] overflow-y-auto border-t border-border">
-                  <ManagePanel />
-                </div>
-              ) : (
-                <MobileOrderPanel />
-              )}
+              <MobileOrderPanel onOpenFullManage={() => setShowFullManage(true)} />
             </div>
           </div>
         </Panel>
@@ -85,6 +79,27 @@ function MobileLayout() {
         <Panel show={tab === "account"}>
           <MobileAccountDetails />
         </Panel>
+
+        {/* Full ManagePanel overlay (slides up when user taps "Manage ▲") */}
+        {showFullManage && managePositionId && (
+          <div className="absolute inset-0 z-50 flex flex-col bg-background/95 backdrop-blur-sm animate-in slide-in-from-bottom duration-200">
+            <div className="flex items-center justify-between border-b border-border px-3 py-2">
+              <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                Full Position Manager
+              </span>
+              <button
+                type="button"
+                onClick={() => setShowFullManage(false)}
+                className="rounded-full p-1 text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="min-h-0 flex-1 overflow-y-auto">
+              <ManagePanel />
+            </div>
+          </div>
+        )}
       </main>
 
       {/* Bottom navigation */}
@@ -111,6 +126,7 @@ function MobileLayout() {
     </div>
   )
 }
+
 
 /**
  * Keeps a panel mounted (so the chart instance and its state survive tab

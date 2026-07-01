@@ -53,7 +53,10 @@ export function ChartOverlay({ chartApiRef }: { chartApiRef: ChartApiRef }) {
   } = useTrading()
   const asset = getAsset(activeSymbol)
 
-  const managed = openPositions.find((p) => p.id === managePositionId) ?? null
+  const managedPosition = openPositions.find((p) => p.id === managePositionId) ?? null
+  const managedOrder = pendingOrders.find((p) => p.id === managePositionId) ?? null
+  const isManagingPosition = managedPosition != null
+  const isManagingOrder = managedOrder != null
 
   const containerRef = useRef<HTMLDivElement>(null)
   const elsRef = useRef<Map<string, HTMLDivElement | null>>(new Map())
@@ -80,7 +83,7 @@ export function ChartOverlay({ chartApiRef }: { chartApiRef: ChartApiRef }) {
   for (const p of openPositions) {
     if (p.symbol !== activeSymbol) continue
     const isBuy = p.direction === "buy"
-    const isManaged = managed?.id === p.id
+    const isManaged = managedPosition?.id === p.id
     const sign = isBuy ? 1 : -1
     const pnlAt = (price: number) =>
       (price - p.entryPrice) * sign * p.volume * asset.contractSize
@@ -146,48 +149,65 @@ export function ChartOverlay({ chartApiRef }: { chartApiRef: ChartApiRef }) {
   for (const o of pendingOrders) {
     if (o.symbol !== activeSymbol) continue
     const isBuy = o.direction === "buy"
+    const isManaged = managedOrder?.id === o.id
+    const sign = isBuy ? 1 : -1
+    const pnlAt = (price: number) =>
+      (price - o.triggerPrice) * sign * o.volume * asset.contractSize
 
     items.push({
       key: `order-${o.id}`,
       price: o.triggerPrice,
-      kind: "position", // renders similarly to a position
+      kind: "position",
       label: `${o.type.toUpperCase()} ${isBuy ? "BUY" : "SELL"} ${o.volume} @ ${formatPrice(o.triggerPrice, asset.digits)}`,
-      color: "var(--muted-foreground)", // Pending orders shown in gray
+      color: "var(--muted-foreground)",
       dashed: true,
       money: null,
       drag: null,
+      onClick: () => {
+        if (!isManaged) beginManage(o.id)
+      },
     })
 
-    // Render SL/TP lines for the pending order if it is selected in the UI
-    if (selectedPositionId === o.id) {
-      if (o.stopLoss != null) {
+    // Render SL/TP lines when managed (draggable) or selected (static)
+    const isSelected = selectedPositionId === o.id
+    if (isManaged || isSelected) {
+      const sl = isManaged ? manageSL : o.stopLoss
+      const tp = isManaged ? manageTP : o.takeProfit
+      if (sl != null) {
         items.push({
           key: `order-sl-${o.id}`,
-          price: o.stopLoss,
+          price: sl,
           kind: "order",
-          label: `SL ${formatPrice(o.stopLoss, asset.digits)}`,
+          label: `SL ${formatPrice(sl, asset.digits)}`,
           color: "var(--loss)",
           dashed: true,
-          money: null,
-          drag: null,
+          money: pnlAt(sl),
+          drag: "manage-sl",
+          onDragStart: () => {
+            if (!isManaged) beginManage(o.id)
+          },
         })
       }
-      if (o.takeProfit != null) {
+      if (tp != null) {
         items.push({
           key: `order-tp-${o.id}`,
-          price: o.takeProfit,
+          price: tp,
           kind: "order",
-          label: `TP ${formatPrice(o.takeProfit, asset.digits)}`,
+          label: `TP ${formatPrice(tp, asset.digits)}`,
           color: "var(--profit)",
           dashed: true,
-          money: null,
-          drag: null,
+          money: pnlAt(tp),
+          drag: "manage-tp",
+          onDragStart: () => {
+            if (!isManaged) beginManage(o.id)
+          },
         })
       }
     }
   }
 
-  if (draft.type !== "market") {
+  // Only show draft order lines when NOT managing a position/order
+  if (!isManagingPosition && !isManagingOrder && draft.type !== "market") {
     items.push({
       key: "order-trigger",
       price: draft.triggerPrice,

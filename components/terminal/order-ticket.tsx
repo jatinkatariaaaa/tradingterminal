@@ -536,10 +536,32 @@ export function OrderTicket() {
  * Compact execution panel shown below the chart on mobile.
  * Contains: Direction toggle, volume, SL/TP quick toggles, and execute button.
  * Expandable for order type, trigger price, and detailed cost breakdown.
+ *
+ * When a position/order is being managed (managePositionId is set), this panel
+ * switches to "manage mode" showing the trade info, SL/TP controls, and a
+ * "Manage ▲" button to open the full ManagePanel overlay.
  */
-export function MobileOrderPanel() {
-  const { activeSymbol, marketPrice, prices, derived, draft, setDraft, executeOrder, account } =
-    useTrading()
+export function MobileOrderPanel({ onOpenFullManage }: { onOpenFullManage?: () => void }) {
+  const {
+    activeSymbol,
+    marketPrice,
+    prices,
+    derived,
+    draft,
+    setDraft,
+    executeOrder,
+    account,
+    openPositions,
+    pendingOrders,
+    managePositionId,
+    manageSL,
+    manageTP,
+    setManageSL,
+    setManageTP,
+    endManage,
+    pnlFor,
+    modifyPosition,
+  } = useTrading()
   const asset = getAsset(activeSymbol)
   const breached = account.status === "breached"
 
@@ -602,6 +624,152 @@ export function MobileOrderPanel() {
     }
   }, [busy, executeOrder])
 
+  // ---- Manage mode: find the managed position or order ----
+  const managedPosition = openPositions.find((p) => p.id === managePositionId) ?? null
+  const managedOrder = pendingOrders.find((o) => o.id === managePositionId) ?? null
+  const isManageMode = managedPosition != null || managedOrder != null
+
+  // Handle SL/TP modification for managed position/order
+  const handleApplySLTP = useCallback(async () => {
+    if (managedPosition) {
+      await modifyPosition(managedPosition.id, manageSL, manageTP)
+    }
+    // For pending orders, modifyPosition also works with the same endpoint
+    // since the server handles both position and order IDs
+  }, [managedPosition, manageSL, manageTP, modifyPosition])
+
+  // ---- MANAGE MODE ----
+  if (isManageMode && managePositionId) {
+    const target = managedPosition ?? managedOrder
+    if (!target) return null
+    const isBuy = target.direction === "buy"
+    const targetAsset = getAsset(target.symbol)
+    const entryPrice = managedPosition?.entryPrice ?? managedOrder?.triggerPrice ?? 0
+    const livePrice = prices[target.symbol] ?? entryPrice
+    const pnl = managedPosition ? pnlFor(managedPosition, livePrice) : null
+    const targetPriceStep = 1 / 10 ** Math.min(targetAsset.digits, 4)
+
+    return (
+      <div className="flex flex-col border-t border-border bg-background">
+        {/* Row 1: Trade info strip */}
+        <div className="flex items-center gap-1.5 px-2 pt-2">
+          <span
+            className="rounded px-1.5 py-0.5 text-[10px] font-bold uppercase"
+            style={{
+              backgroundColor: isBuy ? "var(--buy)" : "var(--sell)",
+              color: isBuy ? "var(--buy-foreground)" : "var(--sell-foreground)",
+            }}
+          >
+            {target.direction}
+          </span>
+          <span className="text-xs font-semibold">{target.symbol}</span>
+          <span className="font-mono text-[10px] text-muted-foreground">
+            {'volume' in target ? target.volume : ''} lots
+          </span>
+          <span className="font-mono text-[10px] text-muted-foreground">
+            @ {formatPrice(entryPrice, targetAsset.digits)}
+          </span>
+          {pnl != null && (
+            <span
+              className="ml-auto font-mono text-xs font-semibold tabular-nums"
+              style={{ color: pnl >= 0 ? "var(--profit)" : "var(--loss)" }}
+            >
+              {pnl >= 0 ? "+" : ""}{formatMoney(pnl)}
+            </span>
+          )}
+          {managedOrder && (
+            <span className="ml-auto text-[10px] font-medium text-muted-foreground uppercase">
+              {managedOrder.type} order
+            </span>
+          )}
+        </div>
+
+        {/* Row 2: SL / TP toggle buttons */}
+        <div className="flex items-center gap-2 px-2 py-1.5">
+          {/* SL toggle */}
+          <button
+            type="button"
+            onClick={() => {
+              if (manageSL != null) {
+                setManageSL(null)
+              } else {
+                const pad = entryPrice * 0.005
+                const round = (v: number) => Number(v.toFixed(targetAsset.digits))
+                setManageSL(round(isBuy ? entryPrice - pad : entryPrice + pad))
+              }
+            }}
+            className={cn(
+              "flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-semibold transition-colors",
+              manageSL != null
+                ? "bg-[var(--loss)]/15 text-[var(--loss)]"
+                : "bg-secondary text-muted-foreground",
+            )}
+          >
+            SL {manageSL != null && <span className="font-mono">{formatPrice(manageSL, Math.min(targetAsset.digits, 4))}</span>}
+          </button>
+          {/* TP toggle */}
+          <button
+            type="button"
+            onClick={() => {
+              if (manageTP != null) {
+                setManageTP(null)
+              } else {
+                const pad = entryPrice * 0.005
+                const round = (v: number) => Number(v.toFixed(targetAsset.digits))
+                setManageTP(round(isBuy ? entryPrice + pad : entryPrice - pad))
+              }
+            }}
+            className={cn(
+              "flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-semibold transition-colors",
+              manageTP != null
+                ? "bg-[var(--profit)]/15 text-[var(--profit)]"
+                : "bg-secondary text-muted-foreground",
+            )}
+          >
+            TP {manageTP != null && <span className="font-mono">{formatPrice(manageTP, Math.min(targetAsset.digits, 4))}</span>}
+          </button>
+          {/* Live bid/ask */}
+          <div className="ml-auto flex items-center gap-2 text-[10px] font-mono tabular-nums">
+            <span style={{ color: "var(--sell)" }}>{formatPrice(bid, asset.digits)}</span>
+            <span className="text-muted-foreground">/</span>
+            <span style={{ color: "var(--buy)" }}>{formatPrice(ask, asset.digits)}</span>
+          </div>
+        </div>
+
+        {/* Row 3: Action buttons */}
+        <div className="flex items-center gap-1.5 px-2 pb-2">
+          {/* Apply SL/TP changes */}
+          <button
+            type="button"
+            onClick={handleApplySLTP}
+            className="flex-1 rounded-md bg-primary py-2 text-xs font-bold text-primary-foreground transition-colors hover:bg-primary/90"
+          >
+            Apply SL/TP
+          </button>
+          {/* Manage ▲ — opens full manage panel overlay for partial close etc. */}
+          {managedPosition && (
+            <button
+              type="button"
+              onClick={onOpenFullManage}
+              className="rounded-md bg-secondary px-3 py-2 text-xs font-semibold text-foreground transition-colors hover:bg-secondary/80"
+            >
+              Manage ▲
+            </button>
+          )}
+          {/* ✕ Deselect */}
+          <button
+            type="button"
+            onClick={endManage}
+            className="rounded-md bg-secondary px-2.5 py-2 text-xs text-muted-foreground transition-colors hover:bg-secondary/80 hover:text-foreground"
+          >
+            ✕
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  // ---- NORMAL ORDER MODE ----
   return (
     <div className="flex flex-col border-t border-border bg-background">
       {/* Row 1: BUY / SELL + Volume */}
@@ -836,3 +1004,4 @@ export function MobileOrderPanel() {
     </div>
   )
 }
+

@@ -406,6 +406,8 @@ export function TradingProvider({ children, initialAccountId }: TradingProviderP
   accountIdRef.current = accountId
   const openPositionsRef = useRef(openPositions)
   openPositionsRef.current = openPositions
+  const pendingOrdersRef = useRef(pendingOrders)
+  pendingOrdersRef.current = pendingOrders
 
   // ---- Draft helpers ----
   const setDraft = useCallback((patch: Partial<OrderDraft>) => {
@@ -481,36 +483,61 @@ export function TradingProvider({ children, initialAccountId }: TradingProviderP
   // another device), exit the manage view so the right panel falls back to the
   // order ticket.
   useEffect(() => {
-    if (managePositionId && !openPositions.some((p) => p.id === managePositionId)) {
+    if (
+      managePositionId &&
+      !openPositions.some((p) => p.id === managePositionId) &&
+      !pendingOrders.some((p) => p.id === managePositionId)
+    ) {
       setManagePositionId(null)
       setManageSLState(null)
       setManageTPState(null)
     }
-  }, [managePositionId, openPositions])
+  }, [managePositionId, openPositions, pendingOrders])
 
   useEffect(() => {
-    if (selectedPositionId && !openPositions.some((p) => p.id === selectedPositionId)) {
+    if (
+      selectedPositionId &&
+      !openPositions.some((p) => p.id === selectedPositionId) &&
+      !pendingOrders.some((p) => p.id === selectedPositionId)
+    ) {
       setSelectedPositionId(null)
     }
-  }, [selectedPositionId, openPositions])
+  }, [selectedPositionId, openPositions, pendingOrders])
 
   // ---- Manage view: seed/clear + live SL/TP (local UI drafts). ----
   // After the cutover, setManageSL/setManageTP only update the local draft
   // values. The actual position SL/TP is modified on the server when the user
   // clicks "Modify" in the manage panel (which calls modifyPosition → API).
   const beginManage = useCallback((id: string) => {
+    // Try open positions first
     const positions = openPositionsRef.current
     const target = positions.find((p) => p.id === id)
-    if (!target) return
-    const asset = getAsset(target.symbol)
-    const isBuy = target.direction === "buy"
-    const pad = target.entryPrice * 0.0015
-    const round = (v: number) => Number(v.toFixed(asset.digits))
-    const seededSL = target.stopLoss ?? round(isBuy ? target.entryPrice - pad : target.entryPrice + pad)
-    const seededTP = target.takeProfit ?? round(isBuy ? target.entryPrice + pad : target.entryPrice - pad)
-    setManagePositionId(id)
-    setManageSLState(seededSL)
-    setManageTPState(seededTP)
+    if (target) {
+      const asset = getAsset(target.symbol)
+      const isBuy = target.direction === "buy"
+      const pad = target.entryPrice * 0.0015
+      const round = (v: number) => Number(v.toFixed(asset.digits))
+      const seededSL = target.stopLoss ?? round(isBuy ? target.entryPrice - pad : target.entryPrice + pad)
+      const seededTP = target.takeProfit ?? round(isBuy ? target.entryPrice + pad : target.entryPrice - pad)
+      setManagePositionId(id)
+      setManageSLState(seededSL)
+      setManageTPState(seededTP)
+      return
+    }
+    // Try pending orders
+    const orders = pendingOrdersRef.current
+    const order = orders.find((o) => o.id === id)
+    if (order) {
+      const asset = getAsset(order.symbol)
+      const isBuy = order.direction === "buy"
+      const pad = order.triggerPrice * 0.0015
+      const round = (v: number) => Number(v.toFixed(asset.digits))
+      const seededSL = order.stopLoss ?? round(isBuy ? order.triggerPrice - pad : order.triggerPrice + pad)
+      const seededTP = order.takeProfit ?? round(isBuy ? order.triggerPrice + pad : order.triggerPrice - pad)
+      setManagePositionId(id)
+      setManageSLState(seededSL)
+      setManageTPState(seededTP)
+    }
   }, [])
 
   const endManage = useCallback(() => {

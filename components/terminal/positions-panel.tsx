@@ -141,10 +141,8 @@ export function PositionsPanel() {
                 <tr
                   key={p.id}
                   onClick={() => {
-                    setSelectedPositionId(isSelected ? null : p.id)
-                    if (!isSelected) {
-                      setActiveSymbol(p.symbol)
-                    }
+                    setActiveSymbol(p.symbol)
+                    beginManage(p.id)
                   }}
                   className={cn(
                     "border-b border-border/50 hover:bg-accent/40 cursor-pointer transition-colors",
@@ -220,7 +218,14 @@ export function PositionsPanel() {
             rows={pendingOrders.map((o) => {
               const asset = getAsset(o.symbol)
               return (
-                <tr key={o.id} className="border-b border-border/50 hover:bg-accent/40">
+                <tr
+                  key={o.id}
+                  onClick={() => {
+                    setActiveSymbol(o.symbol)
+                    beginManage(o.id)
+                  }}
+                  className="border-b border-border/50 hover:bg-accent/40 cursor-pointer transition-colors"
+                >
                   <Td className="font-medium">{o.symbol}</Td>
                   <Td className="uppercase text-muted-foreground">{o.type}</Td>
                   <Td>

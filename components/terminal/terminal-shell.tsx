@@ -45,6 +45,8 @@ function MobileLayout() {
   // Close full manage overlay when the managed position is cleared
   useEffect(() => {
     if (!managePositionId) setShowFullManage(false)
+    // When a position/order starts being managed (from any tab), switch to chart
+    if (managePositionId) setTab("chart")
   }, [managePositionId])
 
   return (

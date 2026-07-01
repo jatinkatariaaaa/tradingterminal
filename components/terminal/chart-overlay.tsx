@@ -49,6 +49,7 @@ export function ChartOverlay({ chartApiRef }: { chartApiRef: ChartApiRef }) {
     selectedPositionId,
     beginManage,
     modifyPosition,
+    modifyOrder,
     pendingOrders,
   } = useTrading()
   const asset = getAsset(activeSymbol)
@@ -274,10 +275,10 @@ export function ChartOverlay({ chartApiRef }: { chartApiRef: ChartApiRef }) {
   const pendingRef = useRef<number | null>(null)
 
   // Keep latest state for onUp without triggering re-binds
-  const stateRefs = useRef({ managePositionId, manageSL, manageTP, modifyPosition })
+  const stateRefs = useRef({ managePositionId, manageSL, manageTP, modifyPosition, modifyOrder, isManagingPosition, isManagingOrder })
   useEffect(() => {
-    stateRefs.current = { managePositionId, manageSL, manageTP, modifyPosition }
-  }, [managePositionId, manageSL, manageTP, modifyPosition])
+    stateRefs.current = { managePositionId, manageSL, manageTP, modifyPosition, modifyOrder, isManagingPosition, isManagingOrder }
+  }, [managePositionId, manageSL, manageTP, modifyPosition, modifyOrder, isManagingPosition, isManagingOrder])
 
   const applyPending = useCallback(() => {
     rafRef.current = 0
@@ -311,12 +312,15 @@ export function ChartOverlay({ chartApiRef }: { chartApiRef: ChartApiRef }) {
       const key = dragKeyRef.current
       dragKeyRef.current = null
       
-      // Auto-save managed position SL/TP when drag finishes
+      // Auto-save managed position/order SL/TP when drag finishes
       if (key === "manage-sl" || key === "manage-tp") {
-        const { managePositionId, manageSL, manageTP, modifyPosition } = stateRefs.current
+        const { managePositionId, manageSL, manageTP, modifyPosition, modifyOrder, isManagingPosition, isManagingOrder } = stateRefs.current
         if (managePositionId) {
-          // Fire and forget server sync
-          modifyPosition(managePositionId, manageSL, manageTP).catch(console.error)
+          if (isManagingPosition) {
+            modifyPosition(managePositionId, manageSL, manageTP).catch(console.error)
+          } else if (isManagingOrder) {
+            modifyOrder(managePositionId, manageSL, manageTP).catch(console.error)
+          }
         }
       }
     }

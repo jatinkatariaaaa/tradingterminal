@@ -173,6 +173,8 @@ interface TradingContextValue {
   /** Panic button — liquidate every open position at the current market price. */
   closeAllPositions: () => Promise<void>
   cancelPending: (id: string) => Promise<void>
+  /** Modify SL/TP on a working pending order. */
+  modifyOrder: (id: string, stopLoss: number | null, takeProfit: number | null) => Promise<void>
   resetAccount: () => void
 
   // Server integration
@@ -223,6 +225,7 @@ type TradingActionsValue = Pick<
   | "modifyPosition"
   | "closeAllPositions"
   | "cancelPending"
+  | "modifyOrder"
   | "resetAccount"
   | "setAccountId"
 >
@@ -893,6 +896,47 @@ export function TradingProvider({ children, initialAccountId }: TradingProviderP
     }
   }, [refreshPortfolio, toast])
 
+  const modifyOrder = useCallback(
+    async (id: string, stopLoss: number | null, takeProfit: number | null) => {
+      setIsSubmitting(true)
+      setLastError(null)
+      try {
+        const res = await fetch("/api/trade/modify-order", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ orderId: id, stopLoss, takeProfit }),
+        })
+        if (!res.ok) {
+          const data = await res.json()
+          const err = data.error ?? "Failed to modify order."
+          setLastError(err)
+          toast({
+            title: "Failed to Modify Order",
+            description: err,
+            variant: "destructive",
+          })
+        } else {
+          toast({
+            title: "Order SL/TP Modified",
+            description: "Successfully updated pending order levels.",
+          })
+          await refreshPortfolio()
+        }
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : "Network error."
+        setLastError(msg)
+        toast({
+          title: "Network Error",
+          description: msg,
+          variant: "destructive",
+        })
+      } finally {
+        setIsSubmitting(false)
+      }
+    },
+    [refreshPortfolio, toast],
+  )
+
   const resetAccount = useCallback(() => {
     // In a server-authoritative world, account reset would need a server
     // endpoint. For now this is a no-op — the server manages account lifecycle.
@@ -966,6 +1010,7 @@ export function TradingProvider({ children, initialAccountId }: TradingProviderP
       modifyPosition,
       closeAllPositions,
       cancelPending,
+      modifyOrder,
       resetAccount,
       setAccountId,
     }),
@@ -984,6 +1029,7 @@ export function TradingProvider({ children, initialAccountId }: TradingProviderP
       modifyPosition,
       closeAllPositions,
       cancelPending,
+      modifyOrder,
       resetAccount,
       setAccountId,
     ],

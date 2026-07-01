@@ -561,6 +561,7 @@ export function MobileOrderPanel({ onOpenFullManage }: { onOpenFullManage?: () =
     endManage,
     pnlFor,
     modifyPosition,
+    modifyOrder,
   } = useTrading()
   const asset = getAsset(activeSymbol)
   const breached = account.status === "breached"
@@ -633,10 +634,10 @@ export function MobileOrderPanel({ onOpenFullManage }: { onOpenFullManage?: () =
   const handleApplySLTP = useCallback(async () => {
     if (managedPosition) {
       await modifyPosition(managedPosition.id, manageSL, manageTP)
+    } else if (managedOrder) {
+      await modifyOrder(managedOrder.id, manageSL, manageTP)
     }
-    // For pending orders, modifyPosition also works with the same endpoint
-    // since the server handles both position and order IDs
-  }, [managedPosition, manageSL, manageTP, modifyPosition])
+  }, [managedPosition, managedOrder, manageSL, manageTP, modifyPosition, modifyOrder])
 
   // ---- MANAGE MODE ----
   if (isManageMode && managePositionId) {

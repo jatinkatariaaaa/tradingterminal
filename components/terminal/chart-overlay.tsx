@@ -49,6 +49,7 @@ export function ChartOverlay({ chartApiRef }: { chartApiRef: ChartApiRef }) {
     selectedPositionId,
     beginManage,
     modifyPosition,
+    pendingOrders,
   } = useTrading()
   const asset = getAsset(activeSymbol)
 
@@ -137,6 +138,50 @@ export function ChartOverlay({ chartApiRef }: { chartApiRef: ChartApiRef }) {
           onDragStart: () => {
             if (!isManaged) beginManage(p.id)
           },
+        })
+      }
+    }
+  }
+
+  for (const o of pendingOrders) {
+    if (o.symbol !== activeSymbol) continue
+    const isBuy = o.direction === "buy"
+
+    items.push({
+      key: `order-${o.id}`,
+      price: o.triggerPrice,
+      kind: "position", // renders similarly to a position
+      label: `${o.type.toUpperCase()} ${isBuy ? "BUY" : "SELL"} ${o.volume} @ ${formatPrice(o.triggerPrice, asset.digits)}`,
+      color: "var(--muted-foreground)", // Pending orders shown in gray
+      dashed: true,
+      money: null,
+      drag: null,
+    })
+
+    // Render SL/TP lines for the pending order if it is selected in the UI
+    if (selectedPositionId === o.id) {
+      if (o.stopLoss != null) {
+        items.push({
+          key: `order-sl-${o.id}`,
+          price: o.stopLoss,
+          kind: "order",
+          label: `SL ${formatPrice(o.stopLoss, asset.digits)}`,
+          color: "var(--loss)",
+          dashed: true,
+          money: null,
+          drag: null,
+        })
+      }
+      if (o.takeProfit != null) {
+        items.push({
+          key: `order-tp-${o.id}`,
+          price: o.takeProfit,
+          kind: "order",
+          label: `TP ${formatPrice(o.takeProfit, asset.digits)}`,
+          color: "var(--profit)",
+          dashed: true,
+          money: null,
+          drag: null,
         })
       }
     }

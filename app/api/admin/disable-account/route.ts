@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createSupabaseServiceClient } from "@/lib/supabase/service";
+import { isAuthorizedAdminRequest } from "@/lib/admin-api-auth";
 // The terminal uses this RPC to atomicially close all positions and mark the account breached
 // Actually, rpc("breach_account") requires marks, which the worker computes.
 // If the CRM says it's disabled, we can just update the status to "breached".
@@ -7,12 +8,9 @@ import { createSupabaseServiceClient } from "@/lib/supabase/service";
 // and the terminal worker will ignore it, or we can manually close positions.
 // Let's just update the status to breached for now.
 
-const ADMIN_API_KEY = process.env.ADMIN_API_KEY || "tpp-admin-secret-key";
-
 export async function POST(request: Request) {
   try {
-    const apiKey = request.headers.get("x-api-key");
-    if (apiKey !== ADMIN_API_KEY) {
+    if (!isAuthorizedAdminRequest(request)) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 

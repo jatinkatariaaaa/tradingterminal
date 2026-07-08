@@ -1,9 +1,6 @@
 import { NextResponse } from "next/server";
 import { createSupabaseServiceClient } from "@/lib/supabase/service";
-
-// Accept ADMIN_API_KEY from env, or fall back to the known CRM key
-const ADMIN_API_KEY = process.env.ADMIN_API_KEY || "tpp-admin-secret-key";
-const CRM_KNOWN_KEY = "220BPHARM010";
+import { isAuthorizedAdminRequest } from "@/lib/admin-api-auth";
 
 function pctToDecimal(value: unknown, fallback: number) {
   const parsed = Number(value);
@@ -12,11 +9,7 @@ function pctToDecimal(value: unknown, fallback: number) {
 
 export async function POST(request: Request) {
   try {
-    const apiKeyHeader = request.headers.get("x-api-key");
-    const bearerToken = request.headers.get("Authorization")?.replace("Bearer ", "");
-    const providedKey = apiKeyHeader || bearerToken;
-    
-    if (providedKey !== ADMIN_API_KEY && providedKey !== CRM_KNOWN_KEY) {
+    if (!isAuthorizedAdminRequest(request)) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 

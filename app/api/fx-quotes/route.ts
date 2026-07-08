@@ -73,8 +73,9 @@ export async function GET(request: Request) {
         })
         .filter(Boolean)
 
-      if (tdSymbols.length > 0) {
-        const TWELVEDATA_KEY = process.env.TWELVE_DATA_KEY || process.env.TWELVEDATA_API_KEY || "b6a9bb0bed6f48919daded4e7b1cdef7"
+      // SECURITY: never hardcode API keys — must come from env.
+      const TWELVEDATA_KEY = process.env.TWELVE_DATA_KEY || process.env.TWELVEDATA_API_KEY
+      if (tdSymbols.length > 0 && TWELVEDATA_KEY) {
         const url = `https://api.twelvedata.com/price?symbol=${tdSymbols.join(",")}&apikey=${TWELVEDATA_KEY}`
         const res = await fetch(url)
         if (res.ok) {
@@ -85,7 +86,8 @@ export async function GET(request: Request) {
           // Or if only 1 symbol, it might be { price: "..." } directly
           if (tdData.price) {
             // Single symbol response
-            const sym = reverseMap[tdSymbols[0]]
+            const firstTdSymbol = tdSymbols[0]
+            const sym = firstTdSymbol ? reverseMap[firstTdSymbol] : undefined
             const p = Number.parseFloat(tdData.price)
             if (sym && !Number.isNaN(p)) {
               prices[sym] = p

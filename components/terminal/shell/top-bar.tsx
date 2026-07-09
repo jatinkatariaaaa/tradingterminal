@@ -1,9 +1,10 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
-import { Activity, ShieldAlert, Wifi, WifiOff } from "lucide-react"
+import { Activity, LogOut, ShieldAlert, Wifi, WifiOff } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { formatMoney } from "@/lib/trading/assets"
+import { signOut } from "@/app/(auth)/actions"
 import { useMarket, useTradingState, useTradingActions } from "../trading-provider"
 import { useServerAccounts } from "@/hooks/use-server-accounts"
 import { ThemeToggle } from "../theme-toggle"
@@ -241,6 +242,21 @@ export function TopBar() {
           <span className="hidden md:inline">{binanceConnected ? "Live" : "Connecting…"}</span>
         </span>
         <ThemeToggle />
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              type="button"
+              onClick={() => signOut()}
+              className="flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+              aria-label="Sign out"
+            >
+              <LogOut className="h-4 w-4" />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent side="bottom" className="text-xs">
+            Sign out
+          </TooltipContent>
+        </Tooltip>
       </div>
     </header>
   )

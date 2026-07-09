@@ -108,10 +108,10 @@ const AssetRow = memo(function AssetRow({
 
       {/* Line 2: change + sparkline …… SELL / BUY */}
       <div className="mt-1 flex items-end justify-between gap-2">
-        <div className="flex min-w-0 flex-col gap-0.5">
+        <div className="flex min-w-0 flex-col gap-0.5 overflow-hidden">
           <span
             className={cn(
-              "font-mono text-[11px] font-semibold tabular-nums",
+              "truncate font-mono text-[11px] font-semibold tabular-nums",
               positive ? "text-profit" : "text-loss",
             )}
           >
@@ -119,7 +119,10 @@ const AssetRow = memo(function AssetRow({
             {change.toFixed(Math.min(asset.digits, 2))} ({positive ? "+" : ""}
             {changePct.toFixed(2)}%)
           </span>
-          <Sparkline data={stats?.series ?? []} positive={positive} />
+          {/* Sparkline only when the column has room, so it never slides under the quote buttons */}
+          <div className="hidden @[300px]:block">
+            <Sparkline data={stats?.series ?? []} positive={positive} />
+          </div>
         </div>
         <div className="flex shrink-0 items-center gap-1.5">
           <QuoteButton

@@ -14,6 +14,7 @@ import {
   type IndicatorId,
   type OhlcBar,
 } from "./indicators"
+import { toRgb } from "./theme"
 
 type AnySeries = ISeriesApi<"Line"> | ISeriesApi<"Histogram">
 
@@ -25,7 +26,8 @@ interface Entry {
 function cssVar(name: string): string {
   if (typeof window === "undefined") return "#888"
   const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim()
-  return v || "#888"
+  // Resolve oklch/lab tokens to rgba so the canvas renderer can parse them.
+  return toRgb(v, "#888")
 }
 
 /**

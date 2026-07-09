@@ -26,7 +26,7 @@ export interface ChartColors {
  */
 let probeCtx: CanvasRenderingContext2D | null = null
 
-function toRgb(value: string, fallback: string): string {
+export function toRgb(value: string, fallback: string): string {
   if (!value) return fallback
   if (!probeCtx) {
     const canvas = document.createElement("canvas")

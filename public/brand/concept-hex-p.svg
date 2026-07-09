@@ -1,0 +1,9 @@
+<svg width="120" height="120" viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Hexagon shield container - strength / prop firm authority -->
+  <path d="M60 6 L104 30 V78 L60 112 L16 78 V30 Z" fill="#0E1420"/>
+  <path d="M60 12 L98 33.5 V75 L60 105 L22 75 V33.5 Z" stroke="#10B981" stroke-width="2.5" fill="none"/>
+  <!-- Monogram P formed by a rising bar chart -->
+  <rect x="42" y="44" width="9" height="36" rx="2" fill="#FFFFFF"/>
+  <rect x="56" y="36" width="9" height="24" rx="2" fill="#10B981"/>
+  <path d="M42 36 H68 C75 36 79 41 79 48 C79 55 75 60 68 60 H56 V52 H66 C68.5 52 70.5 50.5 70.5 48 C70.5 45.5 68.5 44 66 44 H42 Z" fill="#FFFFFF"/>
+</svg>

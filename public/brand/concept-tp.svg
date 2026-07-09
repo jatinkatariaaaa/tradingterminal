@@ -1,0 +1,11 @@
+<svg width="120" height="120" viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Bold TP monogram ligature - The People / Take Profit double meaning -->
+  <rect width="120" height="120" rx="26" fill="#10B981"/>
+  <!-- T -->
+  <rect x="22" y="30" width="52" height="13" rx="3" fill="#0E1420"/>
+  <rect x="41" y="30" width="14" height="60" rx="3" fill="#0E1420"/>
+  <!-- P sharing the T stem -->
+  <path d="M55 30 H80 C92 30 99 38 99 49 C99 60 92 68 80 68 H69 V55 H78 C82 55 85 52.5 85 49 C85 45.5 82 43 78 43 H55 Z" fill="#FFFFFF"/>
+  <!-- Rising tick under the P bowl -->
+  <path d="M69 90 L80 76 L88 84" stroke="#FFFFFF" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+</svg>

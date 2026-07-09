@@ -1,0 +1,10 @@
+<svg width="120" height="120" viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Circle, dark -->
+  <circle cx="60" cy="60" r="58" fill="#0E1420"/>
+  <!-- Mountain summit built from a price line, peak flag = goal reached -->
+  <path d="M20 84 L42 56 L54 68 L78 36 L100 84 Z" fill="#10B981"/>
+  <path d="M20 84 L42 56 L54 68 L78 36" stroke="#FFFFFF" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+  <!-- Flag on the peak -->
+  <line x1="78" y1="36" x2="78" y2="20" stroke="#FFFFFF" stroke-width="3.5" stroke-linecap="round"/>
+  <path d="M78 20 L92 25 L78 30 Z" fill="#FFFFFF"/>
+</svg>

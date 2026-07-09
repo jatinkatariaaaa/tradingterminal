@@ -1,0 +1,10 @@
+<svg width="120" height="120" viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Squircle, off-black -->
+  <rect width="120" height="120" rx="30" fill="#0B0F14"/>
+  <!-- Infinity-style loop: community + endless funding cycle -->
+  <path d="M36 60 C36 47 46 42 53 49 L67 71 C74 78 84 73 84 60 C84 47 74 42 67 49 L53 71 C46 78 36 73 36 60 Z"
+        stroke="#10B981" stroke-width="8" stroke-linecap="round" fill="none"/>
+  <!-- Upward breakout arrow escaping the loop -->
+  <path d="M76 40 L94 22" stroke="#FFFFFF" stroke-width="6" stroke-linecap="round"/>
+  <path d="M80 20 H96 V36" stroke="#FFFFFF" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+</svg>

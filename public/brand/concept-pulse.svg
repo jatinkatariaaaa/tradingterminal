@@ -1,0 +1,9 @@
+<svg width="120" height="120" viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Diamond rotated square - premium feel -->
+  <rect x="18" y="18" width="84" height="84" rx="20" transform="rotate(45 60 60)" fill="#0E1420"/>
+  <rect x="24" y="24" width="72" height="72" rx="16" transform="rotate(45 60 60)" stroke="#10B981" stroke-width="2" fill="none"/>
+  <!-- Market pulse / heartbeat line: the people's pulse in the market -->
+  <path d="M28 60 H44 L52 42 L62 78 L70 54 L76 60 H92"
+        stroke="#10B981" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+  <circle cx="92" cy="60" r="5" fill="#FFFFFF"/>
+</svg>

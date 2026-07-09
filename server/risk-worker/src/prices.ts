@@ -240,12 +240,11 @@ export async function startIngestion(fxPollMs: number): Promise<void> {
   startTiingo()
   startTwelveData()
 
-  // Seed default prices if websockets are temporarily unavailable
-  for (const a of ASSETS) {
-    if (latest[a.symbol] === undefined) {
-      latest[a.symbol] = a.basePrice
-    }
-  }
+  // NEVER seed hardcoded basePrice fallbacks into `latest`. Seeded fake prices
+  // were published to public.prices and used as real fill prices for market
+  // orders (e.g. EURUSD filled at 1.165 while the market was at 1.144),
+  // instantly breaching accounts. Symbols simply have no price until the first
+  // genuine feed tick arrives; every consumer already handles `undefined`.
 }
 
 export { ASSET_MAP }

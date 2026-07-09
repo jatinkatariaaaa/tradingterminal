@@ -19,6 +19,7 @@ import { useTheme } from "next-themes"
 import { useTrading } from "./trading-provider"
 import { ChartOverlay } from "./chart-overlay"
 import type { ChartApi } from "./chart-api"
+import { readChartColors } from "./chart/theme"
 
 // Selectable chart timeframes (seconds per candle).
 const TIMEFRAMES = [
@@ -73,28 +74,29 @@ export function ChartPanel() {
   // ---- Create the chart once. -------------------------------------------
   useEffect(() => {
     if (!containerRef.current) return
+    const c = readChartColors()
     const chart = createChart(containerRef.current, {
       layout: {
         background: { type: ColorType.Solid, color: "transparent" },
-        textColor: "#8b93a6",
+        textColor: c.axisText,
         fontFamily: "var(--font-mono), monospace",
       },
       grid: {
-        vertLines: { color: "rgba(255,255,255,0.04)" },
-        horzLines: { color: "rgba(255,255,255,0.04)" },
+        vertLines: { color: c.grid },
+        horzLines: { color: c.grid },
       },
       crosshair: { mode: CrosshairMode.Normal },
-      rightPriceScale: { borderColor: "rgba(255,255,255,0.08)", scaleMargins: { top: 0.12, bottom: 0.12 } },
-      timeScale: { borderColor: "rgba(255,255,255,0.08)", timeVisible: true, secondsVisible: false },
+      rightPriceScale: { borderColor: c.border, scaleMargins: { top: 0.12, bottom: 0.12 } },
+      timeScale: { borderColor: c.border, timeVisible: true, secondsVisible: false },
       autoSize: true,
     })
     const series = chart.addSeries(CandlestickSeries, {
-      upColor: "#26b96a",
-      downColor: "#e0533d",
-      borderUpColor: "#26b96a",
-      borderDownColor: "#e0533d",
-      wickUpColor: "#26b96a",
-      wickDownColor: "#e0533d",
+      upColor: c.up,
+      downColor: c.down,
+      borderUpColor: c.up,
+      borderDownColor: c.down,
+      wickUpColor: c.up,
+      wickDownColor: c.down,
     })
     chartRef.current = chart
     seriesRef.current = series
@@ -119,21 +121,32 @@ export function ChartPanel() {
     }
   }, [])
 
-  // ---- Update chart colors when theme changes. ---------------------------
+  // ---- Update chart colors when theme changes (all from CSS tokens). -----
   useEffect(() => {
     if (!chartRef.current) return
-    const isDark = resolvedTheme === "dark"
-    chartRef.current.applyOptions({
-      layout: {
-        textColor: isDark ? "#8b93a6" : "#5d6b82",
-      },
-      grid: {
-        vertLines: { color: isDark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.06)" },
-        horzLines: { color: isDark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.06)" },
-      },
-      rightPriceScale: { borderColor: isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.1)" },
-      timeScale: { borderColor: isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.1)" },
+    // Wait a frame so the .dark class change has been applied to <html>.
+    const raf = requestAnimationFrame(() => {
+      if (!chartRef.current) return
+      const c = readChartColors()
+      chartRef.current.applyOptions({
+        layout: { textColor: c.axisText },
+        grid: {
+          vertLines: { color: c.grid },
+          horzLines: { color: c.grid },
+        },
+        rightPriceScale: { borderColor: c.border },
+        timeScale: { borderColor: c.border },
+      })
+      seriesRef.current?.applyOptions({
+        upColor: c.up,
+        downColor: c.down,
+        borderUpColor: c.up,
+        borderDownColor: c.down,
+        wickUpColor: c.up,
+        wickDownColor: c.down,
+      })
     })
+    return () => cancelAnimationFrame(raf)
   }, [resolvedTheme])
 
   // ---- Match the price-axis precision to the asset (so every pip shows). -

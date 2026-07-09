@@ -22,7 +22,12 @@ interface OverlayItem {
   onClick?: () => void
 }
 
-const DARK = "oklch(0.16 0.012 255)"
+/**
+ * Text color used on top of solid buy/sell/profit/loss chips. The page
+ * background always contrasts with those accents in both themes (near-white
+ * page + mid-tone accents in light; near-black page + bright accents in dark).
+ */
+const ON_ACCENT = "var(--background)"
 
 /**
  * Transparent interaction layer over the lightweight-charts canvas.
@@ -382,13 +387,13 @@ export function ChartOverlay({ chartApiRef }: { chartApiRef: ChartApiRef }) {
                 className="absolute left-2 -translate-y-1/2 rounded p-0.5 opacity-70 transition-opacity group-hover:opacity-100"
                 style={{ backgroundColor: item.color }}
               >
-                <GripHorizontal className="h-3 w-3" style={{ color: DARK }} />
+                <GripHorizontal className="h-3 w-3" style={{ color: ON_ACCENT }} />
               </span>
             )}
             {item.kind === "position" && (
               <div
                 className="absolute left-2 -translate-y-1/2 flex items-center gap-2 rounded px-2 py-0.5 font-mono text-[11px] font-semibold tabular-nums shadow-sm"
-                style={{ backgroundColor: item.color, color: DARK }}
+                style={{ backgroundColor: item.color, color: ON_ACCENT }}
               >
                 <span>{item.label}</span>
                 {item.money != null && (
@@ -404,7 +409,7 @@ export function ChartOverlay({ chartApiRef }: { chartApiRef: ChartApiRef }) {
                 className="absolute right-14 -translate-y-1/2 flex items-center gap-2 rounded px-2 py-0.5 font-mono text-[11px] font-semibold tabular-nums shadow-sm"
                 style={{
                   backgroundColor: item.kind === "marker" ? "var(--primary)" : item.color,
-                  color: item.kind === "marker" ? "var(--primary-foreground)" : DARK,
+                  color: item.kind === "marker" ? "var(--primary-foreground)" : ON_ACCENT,
                 }}
               >
                 <span>{item.label}</span>

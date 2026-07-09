@@ -79,9 +79,18 @@ export function ChartPanel() {
   // Default to 1h timeframe (index 5) so the chart always has deep history on mount,
   // preventing blank/empty charts on weekends when sub-minute ticks aren't streaming.
   const [timeframe, setTimeframe] = useState<number>(TIMEFRAMES[5].seconds)
-  const [chartStyle, setChartStyle] = useState<ChartStyle>(loadStoredStyle)
-  const [indicators, setIndicators] = useState<IndicatorId[]>(loadStoredIndicators)
+  // Start with SSR-safe defaults; hydrate persisted prefs after mount to avoid
+  // a hydration mismatch (server can't read localStorage).
+  const [chartStyle, setChartStyle] = useState<ChartStyle>("candles")
+  const [indicators, setIndicators] = useState<IndicatorId[]>([])
+  const [prefsLoaded, setPrefsLoaded] = useState(false)
   const [hoverBar, setHoverBar] = useState<Candle | null>(null)
+
+  useEffect(() => {
+    setChartStyle(loadStoredStyle())
+    setIndicators(loadStoredIndicators())
+    setPrefsLoaded(true)
+  }, [])
 
   const containerRef = useRef<HTMLDivElement>(null)
   const chartRef = useRef<IChartApi | null>(null)
@@ -200,7 +209,7 @@ export function ChartPanel() {
   useEffect(() => {
     const chart = chartRef.current
     if (!chart || !seriesRef.current) return
-    if (typeof window !== "undefined") window.localStorage.setItem(STYLE_STORAGE_KEY, chartStyle)
+    if (prefsLoaded && typeof window !== "undefined") window.localStorage.setItem(STYLE_STORAGE_KEY, chartStyle)
     chart.removeSeries(seriesRef.current)
     seriesRef.current = mountMainSeries(chart, chartStyle)
     // Re-apply precision after remount.
@@ -212,11 +221,11 @@ export function ChartPanel() {
 
   // ---- Sync indicators with the manager. ----------------------------------
   useEffect(() => {
-    if (typeof window !== "undefined") {
+    if (prefsLoaded && typeof window !== "undefined") {
       window.localStorage.setItem(INDICATORS_STORAGE_KEY, JSON.stringify(indicators))
     }
     indicatorMgrRef.current?.sync(indicators, barsRef.current)
-  }, [indicators])
+  }, [indicators, prefsLoaded])
 
   const toggleIndicator = useCallback((id: IndicatorId) => {
     setIndicators((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]))

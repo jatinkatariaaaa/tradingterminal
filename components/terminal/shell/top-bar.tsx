@@ -119,11 +119,15 @@ function DrawdownMeter({
 }
 
 function UtcClock() {
-  const [now, setNow] = useState(() => new Date())
+  // null until mounted so the server render and first client render match
+  // (avoids a hydration mismatch from the ever-changing timestamp).
+  const [now, setNow] = useState<Date | null>(null)
   useEffect(() => {
+    setNow(new Date())
     const id = setInterval(() => setNow(new Date()), 1000)
     return () => clearInterval(id)
   }, [])
+  if (!now) return null
   const hh = String(now.getUTCHours()).padStart(2, "0")
   const mm = String(now.getUTCMinutes()).padStart(2, "0")
   const ss = String(now.getUTCSeconds()).padStart(2, "0")

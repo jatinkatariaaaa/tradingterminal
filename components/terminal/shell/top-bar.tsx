@@ -160,7 +160,13 @@ export function TopBar() {
         <div className="flex h-7 w-7 items-center justify-center rounded-full bg-primary text-primary-foreground">
           <Activity className="h-4 w-4" />
         </div>
-        {accounts.length > 1 ? (
+        <div className="hidden flex-col leading-none sm:flex">
+          <span className="text-xs font-semibold tracking-tight">The People Prop</span>
+          <span className="text-[9px] uppercase tracking-wider text-muted-foreground">
+            Evaluation
+          </span>
+        </div>
+        {accounts.length > 0 && (
           <Select value={accountId || undefined} onValueChange={setAccountId}>
             <SelectTrigger className="h-8 rounded-full border-border bg-secondary px-3 text-xs font-semibold shadow-none">
               <SelectValue placeholder="Select Account" />
@@ -173,13 +179,6 @@ export function TopBar() {
               ))}
             </SelectContent>
           </Select>
-        ) : (
-          <div className="flex flex-col leading-none">
-            <span className="text-xs font-semibold tracking-tight">The People Prop</span>
-            <span className="text-[9px] uppercase tracking-wider text-muted-foreground">
-              Evaluation
-            </span>
-          </div>
         )}
       </div>
 

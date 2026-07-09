@@ -72,7 +72,7 @@ const AssetRow = memo(function AssetRow({
       }}
       aria-label={`Open ${asset.symbol} chart`}
       className={cn(
-        "group w-full cursor-pointer rounded-xl border px-2.5 py-2 text-left transition-colors",
+        "group @container w-full cursor-pointer rounded-xl border px-2.5 py-2 text-left transition-colors",
         active
           ? "border-ring/50 bg-accent"
           : "border-transparent hover:bg-accent/60",
@@ -97,12 +97,12 @@ const AssetRow = memo(function AssetRow({
           >
             <Star className="h-3.5 w-3.5" fill={isFav ? "currentColor" : "none"} />
           </button>
-          <span className="truncate text-[13px] font-bold tracking-tight">{asset.symbol}</span>
+          <span className="shrink-0 whitespace-nowrap text-[13px] font-bold tracking-tight">{asset.symbol}</span>
         </div>
-        <div className="flex shrink-0 items-center gap-2 font-mono text-[10px] tabular-nums text-muted-foreground">
-          <span>H: {formatPrice(stats?.high ?? price, asset.digits)}</span>
-          <span>S: {spreadPips.toFixed(1)}</span>
-          <span>L: {formatPrice(stats?.low ?? price, asset.digits)}</span>
+        <div className="flex min-w-0 shrink items-center gap-2 overflow-hidden font-mono text-[10px] tabular-nums text-muted-foreground">
+          <span className="hidden truncate @[240px]:inline">H: {formatPrice(stats?.high ?? price, asset.digits)}</span>
+          <span className="whitespace-nowrap">S: {spreadPips.toFixed(1)}</span>
+          <span className="hidden truncate @[240px]:inline">L: {formatPrice(stats?.low ?? price, asset.digits)}</span>
         </div>
       </div>
 

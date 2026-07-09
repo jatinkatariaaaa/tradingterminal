@@ -45,6 +45,8 @@ const TIMEFRAMES = [
 
 // How many of the most-recent bars to frame on load; the rest stay scrollable.
 const VISIBLE_CANDLES = 140
+// Bars of synthetic history to generate when the real-candle fetch is empty.
+const SEED_CANDLES = 600
 
 type Candle = OhlcBar
 
@@ -365,18 +367,34 @@ export function ChartPanel() {
         }))
         applyHistory(real)
       } catch {
-        // Network error or empty history — seed a single starting candle
-        // at the current market price so the chart axis focuses correctly.
+        // Network error or empty history — synthesize a random-walk history
+        // that ends exactly at the current market price so the chart is never
+        // blank and the live tick continues seamlessly from the last bar.
         const now = Math.floor(Date.now() / 1000)
-        const bucket = (now - (now % timeframe)) as UTCTimestamp
-        const seed: Candle = {
-          time: bucket,
-          open: marketPrice,
-          high: marketPrice,
-          low: marketPrice,
-          close: marketPrice,
+        const lastBucket = now - (now % timeframe)
+        const digits = asset.digits
+        const round = (v: number) => Number(v.toFixed(digits))
+        // Volatility per bar scales gently with the timeframe.
+        const vol = marketPrice * 0.0004 * Math.min(6, Math.max(1, Math.sqrt(timeframe / 60)))
+        const seeded: Candle[] = []
+        let close = marketPrice
+        // Walk backwards from the current price so the final candle matches it.
+        for (let i = 0; i < SEED_CANDLES; i++) {
+          const time = (lastBucket - i * timeframe) as UTCTimestamp
+          const drift = (Math.random() - 0.5) * vol * 2
+          const open = close - drift
+          const high = Math.max(open, close) + Math.random() * vol * 0.6
+          const low = Math.min(open, close) - Math.random() * vol * 0.6
+          seeded.unshift({
+            time,
+            open: round(open),
+            high: round(high),
+            low: round(low),
+            close: round(close),
+          })
+          close = open
         }
-        applyHistory([seed])
+        applyHistory(seeded)
       }
     }
     load()

@@ -25,6 +25,7 @@ import { LocalNumberInput, PriceField, ExecutionBanners } from "./ticket/fields"
 import { useExecution } from "./ticket/use-execution"
 import { SlTpBlock, RiskRewardLine } from "./ticket/sl-tp-section"
 import { VolumeSection } from "./ticket/volume-section"
+import { pipsToPrice, roundToDigits } from "./ticket/pip-utils"
 
 const ORDER_TYPES: { value: OrderType; label: string }[] = [
   { value: "market", label: "Market" },
@@ -68,6 +69,22 @@ export function OrderTicket() {
   // --- Risk-% sizing. ---
   const [autoRisk, setAutoRisk] = useState(false)
   const [riskPct, setRiskPct] = useState(1.0)
+
+  /**
+   * Default SL/TP distance from entry: 20 pips, but at least 0.1% of price so
+   * high-priced assets (BTC, indices) still get a visible, sensible offset.
+   * Recomputed from the live entry every time the checkbox is toggled on, so
+   * the line always appears right next to the current price on the chart.
+   */
+  const defaultSlTpPrice = useCallback(
+    (kind: "sl" | "tp") => {
+      const dist = Math.max(pipsToPrice(asset.symbol, 20), entryFill * 0.001)
+      // SL sits on the losing side of entry, TP on the winning side.
+      const dirSign = kind === "sl" ? -sign : sign
+      return roundToDigits(asset.symbol, entryFill + dirSign * dist)
+    },
+    [asset.symbol, entryFill, sign],
+  )
 
   useEffect(() => {
     if (!autoRisk || !draft.slEnabled || !draft.slPrice) return
@@ -177,7 +194,7 @@ export function OrderTicket() {
           symbol={asset.symbol}
           enabled={draft.slEnabled}
           price={draft.slPrice}
-          onToggle={(on) => setDraft({ slEnabled: on })}
+          onToggle={(on) => setDraft(on ? { slEnabled: true, slPrice: defaultSlTpPrice("sl") } : { slEnabled: false })}
           onPrice={(v) => setDraft({ slPrice: v })}
           entryFill={entryFill}
           direction={draft.direction}
@@ -193,7 +210,7 @@ export function OrderTicket() {
           symbol={asset.symbol}
           enabled={draft.tpEnabled}
           price={draft.tpPrice}
-          onToggle={(on) => setDraft({ tpEnabled: on })}
+          onToggle={(on) => setDraft(on ? { tpEnabled: true, tpPrice: defaultSlTpPrice("tp") } : { tpEnabled: false })}
           onPrice={(v) => setDraft({ tpPrice: v })}
           entryFill={entryFill}
           direction={draft.direction}
@@ -531,7 +548,19 @@ export function MobileOrderPanel({ onOpenFullManage }: { onOpenFullManage?: () =
         {/* SL toggle */}
         <button
           type="button"
-          onClick={() => setDraft({ slEnabled: !draft.slEnabled })}
+          onClick={() =>
+            setDraft(
+              draft.slEnabled
+                ? { slEnabled: false }
+                : {
+                    slEnabled: true,
+                    slPrice: roundToDigits(
+                      asset.symbol,
+                      entryFill - sign * Math.max(pipsToPrice(asset.symbol, 20), entryFill * 0.001),
+                    ),
+                  },
+            )
+          }
           className={cn(
             "flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-semibold transition-colors",
             draft.slEnabled
@@ -549,7 +578,19 @@ export function MobileOrderPanel({ onOpenFullManage }: { onOpenFullManage?: () =
         {/* TP toggle */}
         <button
           type="button"
-          onClick={() => setDraft({ tpEnabled: !draft.tpEnabled })}
+          onClick={() =>
+            setDraft(
+              draft.tpEnabled
+                ? { tpEnabled: false }
+                : {
+                    tpEnabled: true,
+                    tpPrice: roundToDigits(
+                      asset.symbol,
+                      entryFill + sign * Math.max(pipsToPrice(asset.symbol, 20), entryFill * 0.001),
+                    ),
+                  },
+            )
+          }
           className={cn(
             "flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-semibold transition-colors",
             draft.tpEnabled

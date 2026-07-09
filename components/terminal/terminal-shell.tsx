@@ -6,6 +6,9 @@ import { cn } from "@/lib/utils"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { useTradingState } from "./trading-provider"
 import { AccountBar, MobileAccountDetails } from "./account-bar"
+import { TopBar } from "./shell/top-bar"
+import { CommandPalette } from "./shell/command-palette"
+import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable"
 import { AssetPanel } from "./asset-panel"
 import { ChartPanel } from "./chart-panel"
 import { OrderTicket } from "./order-ticket"
@@ -208,5 +211,10 @@ function DesktopLayout() {
 
 export function TerminalShell() {
   const isMobile = useIsMobile()
-  return isMobile ? <MobileLayout /> : <DesktopLayout />
+  return (
+    <>
+      {isMobile ? <MobileLayout /> : <DesktopLayout />}
+      {!isMobile && <CommandPalette />}
+    </>
+  )
 }

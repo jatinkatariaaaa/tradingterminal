@@ -6,6 +6,10 @@ import { cn } from "@/lib/utils"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { useTradingState } from "./trading-provider"
 import { AccountBar, MobileAccountDetails } from "./account-bar"
+import { TopBar } from "./shell/top-bar"
+import { CommandPalette } from "./shell/command-palette"
+import { useHotkeys } from "./shell/use-hotkeys"
+import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable"
 import { AssetPanel } from "./asset-panel"
 import { ChartPanel } from "./chart-panel"
 import { OrderTicket } from "./order-ticket"
@@ -147,25 +151,61 @@ function Panel({ show, children }: { show: boolean; children: React.ReactNode })
 }
 
 function DesktopLayout() {
+  useHotkeys()
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-background text-foreground">
-      <AccountBar />
-      <main className="grid min-h-0 flex-1 grid-cols-1 gap-px bg-border lg:grid-cols-[260px_minmax(0,1fr)_320px]">
-        {/* LEFT — Asset matrix */}
-        <AssetPanel />
+      <TopBar />
+      <main className="min-h-0 flex-1">
+        <ResizablePanelGroup direction="horizontal" autoSaveId="tt-layout-h">
+          {/* LEFT — Watchlist (collapsible) */}
+          <ResizablePanel
+            id="watchlist"
+            order={1}
+            defaultSize={18}
+            minSize={13}
+            collapsible
+            collapsedSize={0}
+            className="bg-card"
+          >
+            <AssetPanel />
+          </ResizablePanel>
+          <ResizableHandle className="w-px bg-border data-[resize-handle-state=hover]:bg-ring data-[resize-handle-state=drag]:bg-ring" />
 
-        {/* MIDDLE — Chart engine + open positions */}
-        <div className="flex min-h-0 flex-col gap-px bg-border">
-          <div className="min-h-0 flex-1 bg-background">
-            <ChartPanel />
-          </div>
-          <div className="h-[38%] min-h-[180px] bg-background">
-            <PositionsPanel />
-          </div>
-        </div>
+          {/* CENTER — Chart + bottom dock */}
+          <ResizablePanel id="center" order={2} defaultSize={60} minSize={32}>
+            <ResizablePanelGroup direction="vertical" autoSaveId="tt-layout-v">
+              <ResizablePanel id="chart" order={1} defaultSize={64} minSize={30}>
+                <ChartPanel />
+              </ResizablePanel>
+              <ResizableHandle className="h-px bg-border data-[resize-handle-state=hover]:bg-ring data-[resize-handle-state=drag]:bg-ring" />
+              <ResizablePanel
+                id="dock"
+                order={2}
+                defaultSize={36}
+                minSize={12}
+                collapsible
+                collapsedSize={0}
+                className="bg-card"
+              >
+                <PositionsPanel />
+              </ResizablePanel>
+            </ResizablePanelGroup>
+          </ResizablePanel>
+          <ResizableHandle className="w-px bg-border data-[resize-handle-state=hover]:bg-ring data-[resize-handle-state=drag]:bg-ring" />
 
-        {/* RIGHT — Order ticket / position manager */}
-        <RightPanel />
+          {/* RIGHT — Order ticket / manage (collapsible) */}
+          <ResizablePanel
+            id="ticket"
+            order={3}
+            defaultSize={22}
+            minSize={17}
+            collapsible
+            collapsedSize={0}
+            className="bg-card"
+          >
+            <RightPanel />
+          </ResizablePanel>
+        </ResizablePanelGroup>
       </main>
     </div>
   )
@@ -173,5 +213,10 @@ function DesktopLayout() {
 
 export function TerminalShell() {
   const isMobile = useIsMobile()
-  return isMobile ? <MobileLayout /> : <DesktopLayout />
+  return (
+    <>
+      {isMobile ? <MobileLayout /> : <DesktopLayout />}
+      {!isMobile && <CommandPalette />}
+    </>
+  )
 }

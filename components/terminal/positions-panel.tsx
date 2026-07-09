@@ -1,9 +1,9 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Pencil, X, ShieldX } from "lucide-react"
+import { Pencil, X, ShieldX, Equal, Scissors } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { formatMoney, formatPrice, getAsset } from "@/lib/trading/assets"
+import { formatMoney, formatPrice, getAsset, roundToLotStep } from "@/lib/trading/assets"
 import { useTrading } from "./trading-provider"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { Button } from "@/components/ui/button"
@@ -51,6 +51,8 @@ export function PositionsPanel() {
     selectedPositionId,
     setSelectedPositionId,
     setActiveSymbol,
+    modifyPosition,
+    partialClose,
   } = useTrading()
   const isMobile = useIsMobile()
   const [tab, setTab] = useState<Tab>("open")
@@ -60,6 +62,11 @@ export function PositionsPanel() {
       setTab("open")
     }
   }, [isMobile, tab])
+
+  const totalPnl = openPositions.reduce(
+    (sum, p) => sum + pnlFor(p, prices[p.symbol] ?? p.entryPrice),
+    0,
+  )
 
   const tabs: { key: Tab; label: string; count?: number }[] = [
     { key: "open", label: "Positions", count: openPositions.length },
@@ -71,7 +78,7 @@ export function PositionsPanel() {
   }
 
   return (
-    <section className="flex h-full min-h-0 flex-col bg-background">
+    <section className="flex h-full min-h-0 flex-col bg-card">
       <div className="flex items-center gap-1 border-b border-border px-2 py-1.5">
         {tabs.map((t) => (
           <button
@@ -90,6 +97,18 @@ export function PositionsPanel() {
           </button>
         ))}
 
+        {/* Aggregate floating P&L across all open positions. */}
+        {openPositions.length > 0 && (
+          <span
+            className="ml-auto font-mono text-xs font-semibold tabular-nums"
+            style={{ color: totalPnl >= 0 ? "var(--profit)" : "var(--loss)" }}
+            aria-label="Total floating profit and loss"
+          >
+            {totalPnl >= 0 ? "+" : ""}
+            {formatMoney(totalPnl)}
+          </span>
+        )}
+
         {/* Panic button — liquidate everything at market. */}
         {openPositions.length > 0 && (
           <AlertDialog>
@@ -97,7 +116,7 @@ export function PositionsPanel() {
               <Button
                 type="button"
                 size="sm"
-                className="ml-auto h-7 gap-1.5 bg-[var(--loss)] px-2.5 text-xs font-semibold text-background hover:bg-[var(--loss)]/90"
+                className="ml-2 h-7 gap-1.5 bg-[var(--loss)] px-2.5 text-xs font-semibold text-background hover:bg-[var(--loss)]/90"
               >
                 <ShieldX className="h-3.5 w-3.5" />
                 Close All
@@ -188,6 +207,37 @@ export function PositionsPanel() {
                         title="Modify SL/TP · Partial close"
                       >
                         <Pencil className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6 text-muted-foreground hover:text-foreground disabled:opacity-30"
+                        disabled={pnl <= 0}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          modifyPosition(p.id, p.entryPrice, p.takeProfit ?? null)
+                        }}
+                        aria-label="Move stop loss to breakeven"
+                        title="Breakeven — move SL to entry"
+                      >
+                        <Equal className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6 text-muted-foreground hover:text-foreground disabled:opacity-30"
+                        disabled={p.volume <= asset.lotStep}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          const half = roundToLotStep(p.volume / 2, asset.lotStep)
+                          if (half >= asset.lotStep) partialClose(p.id, half)
+                        }}
+                        aria-label="Close half of the position"
+                        title="Partial close 50%"
+                      >
+                        <Scissors className="h-3.5 w-3.5" />
                       </Button>
                       <Button
                         type="button"
@@ -313,7 +363,7 @@ function Table({
   }
   return (
     <table className="w-full border-collapse text-xs">
-      <thead className="sticky top-0 bg-background">
+      <thead className="sticky top-0 bg-card">
         <tr className="border-b border-border text-left text-[10px] uppercase tracking-wider text-muted-foreground">
           {head.map((h, i) => (
             <th key={i} className="px-3 py-2 font-medium">

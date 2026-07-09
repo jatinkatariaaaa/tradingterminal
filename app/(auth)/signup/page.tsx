@@ -2,7 +2,9 @@
 
 import Link from "next/link"
 import { useActionState } from "react"
+import { AlertCircle } from "lucide-react"
 import { signUp, type AuthActionState } from "../actions"
+import { AuthShell, AuthField } from "@/components/auth/auth-shell"
 
 const initial: AuthActionState = { error: null }
 
@@ -10,48 +12,66 @@ export default function SignupPage() {
   const [state, action, pending] = useActionState(signUp, initial)
 
   return (
-    <main className="flex min-h-dvh items-center justify-center bg-background px-4">
-      <div className="w-full max-w-sm rounded-lg border border-border bg-card p-6">
-        <h1 className="text-lg font-semibold">Create account</h1>
-        <p className="mt-1 text-xs text-muted-foreground">Start your evaluation challenge.</p>
-        <form action={action} className="mt-5 flex flex-col gap-3">
-          <label className="flex flex-col gap-1 text-xs font-medium">
-            Email
-            <input
-              name="email"
-              type="email"
-              autoComplete="email"
-              required
-              className="rounded-md border border-border bg-background px-3 py-2 text-sm outline-none focus:border-primary"
-            />
-          </label>
-          <label className="flex flex-col gap-1 text-xs font-medium">
-            Password
-            <input
-              name="password"
-              type="password"
-              autoComplete="new-password"
-              required
-              minLength={8}
-              className="rounded-md border border-border bg-background px-3 py-2 text-sm outline-none focus:border-primary"
-            />
-          </label>
-          {state.error && <p className="text-xs text-[var(--loss)]">{state.error}</p>}
+    <AuthShell>
+      <div className="w-full max-w-sm">
+        <h1 className="text-2xl font-semibold tracking-tight">Create your account</h1>
+        <p className="mt-1.5 text-sm text-muted-foreground">
+          Start your evaluation challenge in minutes.
+        </p>
+
+        <form action={action} className="mt-8 flex flex-col gap-4">
+          <AuthField
+            label="Email"
+            name="email"
+            type="email"
+            autoComplete="email"
+            placeholder="you@example.com"
+            required
+          />
+          <AuthField
+            label="Password"
+            name="password"
+            type="password"
+            autoComplete="new-password"
+            placeholder="At least 8 characters"
+            minLength={8}
+            required
+          />
+
+          {state.error && (
+            <div
+              role="alert"
+              className="flex items-start gap-2 rounded-lg border border-[var(--loss)]/30 bg-[var(--loss)]/10 px-3 py-2.5 text-xs font-medium text-[var(--loss)]"
+            >
+              <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+              <span>{state.error}</span>
+            </div>
+          )}
+
           <button
             type="submit"
             disabled={pending}
-            className="mt-1 rounded-md bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground disabled:opacity-60"
+            className="mt-1 h-11 rounded-lg bg-primary text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-60"
           >
-            {pending ? "Creating\u2026" : "Create account"}
+            {pending ? "Creating account\u2026" : "Create account"}
           </button>
         </form>
-        <p className="mt-4 text-xs text-muted-foreground">
-          Already have an account?{" "}
-          <Link href="/login" className="font-medium text-primary hover:underline">
-            Sign in
-          </Link>
-        </p>
+
+        <div className="mt-6 flex items-center gap-3">
+          <span className="h-px flex-1 bg-border" />
+          <span className="text-[11px] uppercase tracking-wider text-muted-foreground">
+            Already registered?
+          </span>
+          <span className="h-px flex-1 bg-border" />
+        </div>
+
+        <Link
+          href="/login"
+          className="mt-4 flex h-11 items-center justify-center rounded-lg border border-border text-sm font-medium transition-colors hover:bg-secondary"
+        >
+          Sign in instead
+        </Link>
       </div>
-    </main>
+    </AuthShell>
   )
 }

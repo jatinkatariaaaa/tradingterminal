@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server"
 import { getAsset, twelveDataSymbol } from "@/lib/trading/assets"
+import { categoryOf } from "@/lib/trading/category"
+import { isMarketOpenAt } from "@/lib/trading/market-hours"
 
 /**
  * Server-side proxy for REAL historical OHLC candles from Twelve Data.
@@ -11,7 +13,9 @@ import { getAsset, twelveDataSymbol } from "@/lib/trading/assets"
  * Sub-minute timeframes (5s, 15s) return empty — the client builds those live.
  */
 
-const TWELVEDATA_KEY = process.env.TWELVEDATA_API_KEY ?? ""
+// Same key resolution chain as /api/fx-quotes so both routes always agree.
+const TWELVEDATA_KEY =
+  process.env.TWELVE_DATA_KEY || process.env.TWELVEDATA_API_KEY || "b6a9bb0bed6f48919daded4e7b1cdef7"
 const BASE_URL = "https://api.twelvedata.com/time_series"
 
 interface Candle {
@@ -144,8 +148,14 @@ export async function GET(request: Request) {
     }
   }
 
+  // Drop bars stamped inside closed market hours (Fri 22:00 → Sun 22:00 UTC
+  // for forex/metals). Some data feeds emit flat placeholder bars across the
+  // weekend, which would otherwise render as dummy candles on the chart.
+  const category = categoryOf(symbol)
+  const open = raw.filter((bar) => isMarketOpenAt(category, bar.time))
+
   // Aggregate into target timeframe if needed (e.g., 4h from 1h bars)
-  const candles = tf >= sourceSeconds && tf !== sourceSeconds ? aggregate(raw, tf) : raw
+  const candles = tf >= sourceSeconds && tf !== sourceSeconds ? aggregate(open, tf) : open
 
   return NextResponse.json({ candles })
 }

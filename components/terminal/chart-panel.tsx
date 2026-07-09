@@ -16,7 +16,7 @@ import {
 import { cn } from "@/lib/utils"
 import { formatPrice, getAsset } from "@/lib/trading/assets"
 import { categoryOf } from "@/lib/trading/category"
-import { isMarketOpen } from "@/lib/trading/market-hours"
+import { isMarketOpen, isMarketOpenAt } from "@/lib/trading/market-hours"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { useTheme } from "next-themes"
 import { useTrading } from "./trading-provider"
@@ -370,29 +370,36 @@ export function ChartPanel() {
         // Network error or empty history — synthesize a random-walk history
         // that ends exactly at the current market price so the chart is never
         // blank and the live tick continues seamlessly from the last bar.
+        // Weekend buckets are skipped for closed markets so no dummy candles
+        // form on Saturday/Sunday (matches how TradingView shows a gap).
+        const category = categoryOf(activeSymbol)
         const now = Math.floor(Date.now() / 1000)
-        const lastBucket = now - (now % timeframe)
         const digits = asset.digits
         const round = (v: number) => Number(v.toFixed(digits))
         // Volatility per bar scales gently with the timeframe.
         const vol = marketPrice * 0.0004 * Math.min(6, Math.max(1, Math.sqrt(timeframe / 60)))
         const seeded: Candle[] = []
         let close = marketPrice
-        // Walk backwards from the current price so the final candle matches it.
-        for (let i = 0; i < SEED_CANDLES; i++) {
-          const time = (lastBucket - i * timeframe) as UTCTimestamp
-          const drift = (Math.random() - 0.5) * vol * 2
-          const open = close - drift
-          const high = Math.max(open, close) + Math.random() * vol * 0.6
-          const low = Math.min(open, close) - Math.random() * vol * 0.6
-          seeded.unshift({
-            time,
-            open: round(open),
-            high: round(high),
-            low: round(low),
-            close: round(close),
-          })
-          close = open
+        let bucket = now - (now % timeframe)
+        let guard = SEED_CANDLES * 4 // hard cap on scanned buckets
+        // Walk backwards from the current price so the final candle matches it,
+        // only emitting bars for buckets when the market was actually open.
+        while (seeded.length < SEED_CANDLES && guard-- > 0) {
+          if (isMarketOpenAt(category, bucket)) {
+            const drift = (Math.random() - 0.5) * vol * 2
+            const open = close - drift
+            const high = Math.max(open, close) + Math.random() * vol * 0.6
+            const low = Math.min(open, close) - Math.random() * vol * 0.6
+            seeded.unshift({
+              time: bucket as UTCTimestamp,
+              open: round(open),
+              high: round(high),
+              low: round(low),
+              close: round(close),
+            })
+            close = open
+          }
+          bucket -= timeframe
         }
         applyHistory(seeded)
       }

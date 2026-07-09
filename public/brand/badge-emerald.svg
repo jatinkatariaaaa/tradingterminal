@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <!-- Emerald badge: white figures on brand-green rounded square -->
+  <rect width="64" height="64" rx="14" fill="#10B981"/>
+  <!-- Figure 1 (short) -->
+  <circle cx="18" cy="35" r="3.4" fill="#FFFFFF" fill-opacity="0.85"/>
+  <rect x="14.6" y="40.4" width="6.8" height="11.6" rx="3.4" fill="#FFFFFF" fill-opacity="0.85"/>
+  <!-- Figure 2 (medium) -->
+  <circle cx="32" cy="27" r="3.4" fill="#FFFFFF" fill-opacity="0.85"/>
+  <rect x="28.6" y="32.4" width="6.8" height="19.6" rx="3.4" fill="#FFFFFF" fill-opacity="0.85"/>
+  <!-- Figure 3 (tall, accent in dark) -->
+  <circle cx="46" cy="19" r="3.4" fill="#0A0F0D"/>
+  <rect x="42.6" y="24.4" width="6.8" height="27.6" rx="3.4" fill="#0A0F0D"/>
+</svg>

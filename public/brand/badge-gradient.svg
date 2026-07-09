@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <!-- Gradient badge: subtle emerald-to-deep-teal, all-white figures -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="64" y2="64" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#10B981"/>
+      <stop offset="1" stop-color="#065F46"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="14" fill="url(#bg)"/>
+  <!-- Figure 1 (short) -->
+  <circle cx="18" cy="35" r="3.4" fill="#FFFFFF"/>
+  <rect x="14.6" y="40.4" width="6.8" height="11.6" rx="3.4" fill="#FFFFFF"/>
+  <!-- Figure 2 (medium) -->
+  <circle cx="32" cy="27" r="3.4" fill="#FFFFFF"/>
+  <rect x="28.6" y="32.4" width="6.8" height="19.6" rx="3.4" fill="#FFFFFF"/>
+  <!-- Figure 3 (tall) -->
+  <circle cx="46" cy="19" r="3.4" fill="#FFFFFF"/>
+  <rect x="42.6" y="24.4" width="6.8" height="27.6" rx="3.4" fill="#FFFFFF"/>
+</svg>

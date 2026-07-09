@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <!-- Badge with trend line connecting figure heads into an arrow -->
+  <rect width="64" height="64" rx="14" fill="#0A0F0D"/>
+  <!-- Rising trend line through the heads -->
+  <path d="M14 40 L46 17" stroke="#10B981" stroke-width="2" stroke-linecap="round" stroke-opacity="0.45"/>
+  <path d="M40 16 L47 16.5 L44.5 23" stroke="#10B981" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none" stroke-opacity="0.45"/>
+  <!-- Figure 1 (short) -->
+  <circle cx="18" cy="37" r="3.4" fill="#F8FAFC"/>
+  <rect x="14.6" y="42.4" width="6.8" height="10" rx="3.4" fill="#F8FAFC"/>
+  <!-- Figure 2 (medium) -->
+  <circle cx="32" cy="29" r="3.4" fill="#F8FAFC"/>
+  <rect x="28.6" y="34.4" width="6.8" height="18" rx="3.4" fill="#F8FAFC"/>
+  <!-- Figure 3 (tall, accent) -->
+  <circle cx="46" cy="21" r="3.4" fill="#10B981"/>
+  <rect x="42.6" y="26.4" width="6.8" height="26" rx="3.4" fill="#10B981"/>
+</svg>

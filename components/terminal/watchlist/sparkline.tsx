@@ -27,7 +27,10 @@ export function Sparkline({
       if (v < min) min = v
       if (v > max) max = v
     }
-    const span = max - min || 1
+    // Flat series (e.g. market closed over the weekend) — no movement to
+    // show, so skip rendering instead of drawing a flat line at the bottom.
+    if (max - min <= 0) return { line: "", area: "" }
+    const span = max - min
     const stepX = width / (data.length - 1)
     const pad = 2
     const usable = height - pad * 2

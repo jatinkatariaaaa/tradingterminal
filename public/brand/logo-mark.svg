@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" fill="none">
+  <!-- The People Prop mark: three ascending candle-people (community rising) -->
+  <!-- Figure 1 (short) -->
+  <circle cx="10" cy="27" r="3.4" fill="#F8FAFC"/>
+  <rect x="6.6" y="32.4" width="6.8" height="11.6" rx="3.4" fill="#F8FAFC"/>
+  <!-- Figure 2 (medium) -->
+  <circle cx="24" cy="19" r="3.4" fill="#F8FAFC"/>
+  <rect x="20.6" y="24.4" width="6.8" height="19.6" rx="3.4" fill="#F8FAFC"/>
+  <!-- Figure 3 (tall, accent = the funded trader) -->
+  <circle cx="38" cy="11" r="3.4" fill="#10B981"/>
+  <rect x="34.6" y="16.4" width="6.8" height="27.6" rx="3.4" fill="#10B981"/>
+</svg>

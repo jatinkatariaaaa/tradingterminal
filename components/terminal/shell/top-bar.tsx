@@ -1,7 +1,8 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
-import { Activity, LogOut, ShieldAlert, Wifi, WifiOff } from "lucide-react"
+import { LogOut, ShieldAlert, Wifi, WifiOff } from "lucide-react"
+import { BrandMark } from "@/components/brand/brand-logo"
 import { cn } from "@/lib/utils"
 import { formatMoney } from "@/lib/trading/assets"
 import { signOut } from "@/app/(auth)/actions"
@@ -158,11 +159,11 @@ export function TopBar() {
     <header className="flex h-12 shrink-0 items-center gap-3 border-b border-border bg-card px-3">
       {/* Brand + account selector */}
       <div className="flex items-center gap-2.5">
-        <div className="flex h-7 w-7 items-center justify-center rounded-full bg-primary text-primary-foreground">
-          <Activity className="h-4 w-4" />
-        </div>
+        <BrandMark className="h-7 w-7 text-foreground" />
         <div className="hidden flex-col leading-none sm:flex">
-          <span className="text-xs font-semibold tracking-tight">The People Prop</span>
+          <span className="text-xs font-bold uppercase tracking-tight">
+            The People <span style={{ color: "var(--profit)" }}>Prop</span>
+          </span>
           <span className="text-[9px] uppercase tracking-wider text-muted-foreground">
             Evaluation
           </span>

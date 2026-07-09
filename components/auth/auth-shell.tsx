@@ -53,12 +53,10 @@ export function AuthShell({ children }: { children: ReactNode }) {
           </svg>
         </div>
 
-        <div className="relative flex items-center gap-2.5">
-          <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-            <TrendingUp className="h-5 w-5" />
-          </span>
-          <span className="text-lg font-semibold tracking-tight text-sidebar-foreground">
-            The People Prop
+        <div className="relative flex items-center gap-3">
+          <BrandMark className="h-9 w-9 text-sidebar-foreground" />
+          <span className="text-lg font-bold uppercase tracking-tight text-sidebar-foreground">
+            The People <span style={{ color: "var(--profit, #10B981)" }}>Prop</span>
           </span>
         </div>
 
@@ -93,11 +91,11 @@ export function AuthShell({ children }: { children: ReactNode }) {
       {/* Form panel */}
       <section className="flex w-full flex-col items-center justify-center px-4 py-10 lg:w-1/2">
         {/* Mobile brand mark */}
-        <div className="mb-8 flex items-center gap-2.5 lg:hidden">
-          <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-            <TrendingUp className="h-5 w-5" />
+        <div className="mb-8 flex items-center gap-3 lg:hidden">
+          <BrandMark className="h-9 w-9 text-foreground" />
+          <span className="text-lg font-bold uppercase tracking-tight">
+            The People <span style={{ color: "var(--profit, #10B981)" }}>Prop</span>
           </span>
-          <span className="text-lg font-semibold tracking-tight">The People Prop</span>
         </div>
         {children}
       </section>

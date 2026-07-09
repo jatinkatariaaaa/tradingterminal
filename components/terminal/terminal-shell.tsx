@@ -8,6 +8,7 @@ import { useTradingState } from "./trading-provider"
 import { AccountBar, MobileAccountDetails } from "./account-bar"
 import { TopBar } from "./shell/top-bar"
 import { CommandPalette } from "./shell/command-palette"
+import { useHotkeys } from "./shell/use-hotkeys"
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable"
 import { AssetPanel } from "./asset-panel"
 import { ChartPanel } from "./chart-panel"
@@ -150,6 +151,7 @@ function Panel({ show, children }: { show: boolean; children: React.ReactNode })
 }
 
 function DesktopLayout() {
+  useHotkeys()
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-background text-foreground">
       <TopBar />

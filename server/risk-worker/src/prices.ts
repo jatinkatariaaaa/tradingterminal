@@ -4,6 +4,13 @@ import { broadcastPrice } from "./ws-server.js"
 
 const latest: Record<string, number> = {}
 
+/**
+ * Tracks symbols that have received at least one REAL price from a WebSocket
+ * feed (Binance/Tiingo/TwelveData). Symbols NOT in this set still hold a stale
+ * basePrice fallback and must NEVER be published to public.prices.
+ */
+export const realPriceReceived = new Set<string>()
+
 export function getPrice(symbol: string): number | undefined {
   return latest[symbol]
 }
@@ -49,6 +56,7 @@ function startBinance(): void {
             const internalSymbol = reverseMap[sym]
             if (internalSymbol) {
               latest[internalSymbol] = price
+              realPriceReceived.add(internalSymbol)
               broadcastPrice(internalSymbol, price)
             }
           }
@@ -142,6 +150,7 @@ function startTiingo(): void {
               const asset = ASSET_MAP[internalSymbol]
               if (asset && !isMarketOpen(asset.category)) return // Block closed market ticks
               latest[internalSymbol] = midPrice
+              realPriceReceived.add(internalSymbol)
               broadcastPrice(internalSymbol, midPrice)
             }
           }
@@ -206,6 +215,7 @@ function startTwelveData(): void {
         if (msg.event === "price" && msg.symbol === usoilAsset.twelveDataSymbol && typeof msg.price === "number") {
           if (!isMarketOpen(usoilAsset.category)) return // Block closed market ticks
           latest["USOIL"] = msg.price
+          realPriceReceived.add("USOIL")
           broadcastPrice("USOIL", msg.price)
         } else if (msg.event === "error") {
           console.error("Twelve Data WebSocket error:", msg)
@@ -240,12 +250,10 @@ export async function startIngestion(fxPollMs: number): Promise<void> {
   startTiingo()
   startTwelveData()
 
-  // Seed default prices if websockets are temporarily unavailable
-  for (const a of ASSETS) {
-    if (latest[a.symbol] === undefined) {
-      latest[a.symbol] = a.basePrice
-    }
-  }
+  // NOTE: We intentionally do NOT seed basePrice fallbacks into `latest`.
+  // If a WebSocket hasn't delivered a real price yet, the symbol stays
+  // undefined → publishPrices() skips it → the SQL fill function rejects
+  // the trade with "no server price" instead of filling at a stale price.
 }
 
 export { ASSET_MAP }

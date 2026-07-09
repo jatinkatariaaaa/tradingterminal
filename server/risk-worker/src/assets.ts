@@ -21,9 +21,9 @@ export interface WorkerAsset {
 
 export const ASSETS: WorkerAsset[] = [
   // Forex
-  { symbol: "EURUSD", category: "forex", feed: "finnhub", twelveDataSymbol: "EUR/USD", digits: 5, contractSize: 100_000, basePrice: 1.165 },
-  { symbol: "GBPUSD", category: "forex", feed: "finnhub", twelveDataSymbol: "GBP/USD", digits: 5, contractSize: 100_000, basePrice: 1.343 },
-  { symbol: "USDJPY", category: "forex", feed: "finnhub", twelveDataSymbol: "USD/JPY", digits: 3, contractSize: 100_000, basePrice: 156.4 },
+  { symbol: "EURUSD", category: "forex", feed: "finnhub", twelveDataSymbol: "EUR/USD", digits: 5, contractSize: 100_000, basePrice: 1.144 },
+  { symbol: "GBPUSD", category: "forex", feed: "finnhub", twelveDataSymbol: "GBP/USD", digits: 5, contractSize: 100_000, basePrice: 1.340 },
+  { symbol: "USDJPY", category: "forex", feed: "finnhub", twelveDataSymbol: "USD/JPY", digits: 3, contractSize: 100_000, basePrice: 162.4 },
   { symbol: "AUDUSD", category: "forex", feed: "finnhub", twelveDataSymbol: "AUD/USD", digits: 5, contractSize: 100_000, basePrice: 0.662 },
   { symbol: "USDCAD", category: "forex", feed: "finnhub", twelveDataSymbol: "USD/CAD", digits: 5, contractSize: 100_000, basePrice: 1.368 },
   { symbol: "USDCHF", category: "forex", feed: "finnhub", twelveDataSymbol: "USD/CHF", digits: 5, contractSize: 100_000, basePrice: 0.806 },

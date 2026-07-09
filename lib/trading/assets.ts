@@ -45,7 +45,7 @@ const crypto = (
 
 export const ASSETS: Asset[] = [
   // ---------------------------------------------------------------- Forex
-  fx("EURUSD", "Euro / US Dollar", 1.165, 5),
+  fx("EURUSD", "Euro / US Dollar", 1.144, 5),
   fx("GBPUSD", "British Pound / US Dollar", 1.343, 5),
   fx("USDJPY", "US Dollar / Japanese Yen", 156.4, 3),
   fx("USDCHF", "US Dollar / Swiss Franc", 0.806, 5),

@@ -4,7 +4,7 @@
 // Throttled: only updates each symbol in the Supabase DB once every 5 seconds.
 
 import { supabase } from "./db.js"
-import { getPrices } from "./prices.js"
+import { getPrices, realPriceReceived } from "./prices.js"
 import { ASSET_MAP, isMarketOpen } from "./assets.js"
 
 const lastPublishedTime: Record<string, number> = {}
@@ -16,6 +16,11 @@ export async function publishPrices(): Promise<void> {
 
   for (const [symbol, price] of Object.entries(prices)) {
     if (!Number.isFinite(price) || price <= 0) continue
+
+    // CRITICAL: Never publish a price that hasn't come from a real WebSocket
+    // feed. Without this guard, stale basePrice fallbacks could reach the DB
+    // and cause trades to fill at wildly wrong prices.
+    if (!realPriceReceived.has(symbol)) continue
 
     const asset = ASSET_MAP[symbol]
     if (asset && !isMarketOpen(asset.category)) continue

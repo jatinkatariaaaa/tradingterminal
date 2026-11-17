@@ -36,7 +36,7 @@ export function ChartToolbar({
   return (
     <div className="flex items-center gap-1">
       {/* Chart style switcher */}
-      <div className="flex items-center rounded-full bg-secondary p-0.5">
+      <div className="flex items-center gap-0.5 rounded-lg bg-secondary p-0.5">
         {STYLES.map(({ id, label, icon: Icon }) => (
           <button
             key={id}
@@ -46,9 +46,9 @@ export function ChartToolbar({
             aria-label={`${label} chart`}
             title={label}
             className={cn(
-              "rounded-full p-1 transition-colors",
+              "grid h-6 w-7 place-items-center rounded-md transition-colors",
               style === id
-                ? "bg-primary text-primary-foreground"
+                ? "bg-background text-foreground shadow-sm"
                 : "text-muted-foreground hover:text-foreground",
             )}
           >
@@ -63,10 +63,10 @@ export function ChartToolbar({
           <button
             type="button"
             className={cn(
-              "flex items-center gap-1 rounded-full px-2 py-1 text-[11px] font-semibold transition-colors",
+              "flex h-7 items-center gap-1.5 rounded-lg border px-2.5 text-[11.5px] font-semibold transition-colors",
               indicators.length > 0
-                ? "bg-primary text-primary-foreground"
-                : "bg-secondary text-muted-foreground hover:text-foreground",
+                ? "border-volt/60 bg-volt/10 text-foreground"
+                : "border-border text-muted-foreground hover:text-foreground",
             )}
             aria-label="Indicators"
           >

@@ -20,15 +20,13 @@ import { isMarketOpen, isMarketOpenAt } from "@/lib/trading/market-hours"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { useTheme } from "next-themes"
 import { useTrading } from "./trading-provider"
+import { DesktopChartHeader } from "./desktop/chart-header"
 import { ChartOverlay } from "./chart-overlay"
 import type { ChartApi } from "./chart-api"
 import { readChartColors } from "./chart/theme"
 import { IndicatorManager } from "./chart/indicator-manager"
 import type { IndicatorId, OhlcBar } from "./chart/indicators"
 import { ChartToolbar, type ChartStyle } from "./chart/chart-toolbar"
-import { QuoteButton } from "./watchlist/quote-button"
-import { bidAsk, spreadOf } from "@/lib/trading/assets"
-import { useQuickTrade } from "./chart/use-quick-trade"
 
 // Selectable chart timeframes (seconds per candle).
 const TIMEFRAMES = [
@@ -72,11 +70,10 @@ function loadStoredStyle(): ChartStyle {
 }
 
 export function ChartPanel() {
-  const { activeSymbol, marketPrice, binanceConnected } = useTrading()
+  const { activeSymbol, marketPrice } = useTrading()
   const isMobile = useIsMobile()
   const { resolvedTheme } = useTheme()
   const asset = getAsset(activeSymbol)
-  const { fire, isSubmitting } = useQuickTrade()
 
   // Default to 1h timeframe (index 5) so the chart always has deep history on mount,
   // preventing blank/empty charts on weekends when sub-minute ticks aren't streaming.
@@ -457,70 +454,23 @@ export function ChartPanel() {
     }
   }, [marketPrice, activeSymbol, timeframe, updateSeriesBar])
 
-  const feedLabel =
-    asset.feed === "binance" ? "Binance WS" : asset.feed === "massive" ? "Massive + Sim" : "Internal Sim"
-  const feedLive = asset.feed === "binance" ? binanceConnected : true
-  const feedTitle =
-    asset.feed === "binance"
-      ? "Real-time prices from the public Binance combined ticker stream"
-      : asset.feed === "massive"
-        ? "Real anchor price from massive.com, kept live by the internal simulator"
-        : "Internal 500ms math simulator"
-
-  // On-chart quote buttons (bid/ask from the live mid).
-  const spread = spreadOf(asset, marketPrice)
-  const { bid, ask } = bidAsk(marketPrice, spread)
-
   // Legend bar: hovered bar, else the live one.
   const legendBar = hoverBar ?? candleRef.current
   const legendUp = legendBar ? legendBar.close >= legendBar.open : true
 
   return (
     <section className="flex h-full min-h-0 flex-col bg-background">
-      {/* Symbol header — hidden on mobile (shown in compact top bar instead) */}
-      {!isMobile && (
-        <div className="flex items-center justify-between gap-4 border-b border-border px-4 py-2">
-          <div className="flex items-baseline gap-3">
-            <h2 className="text-sm font-bold tracking-tight">{asset.symbol}</h2>
-            <span className="text-xs text-muted-foreground">{asset.label}</span>
-            <span
-              className="flex items-center gap-1.5 rounded-full bg-secondary px-2 py-0.5 text-[10px] font-medium text-secondary-foreground"
-              title={feedTitle}
-            >
-              <span
-                className="h-1.5 w-1.5 rounded-full"
-                style={{ backgroundColor: feedLive ? "var(--profit)" : "var(--muted-foreground)" }}
-              />
-              {feedLabel}
-            </span>
-          </div>
-          <div className="flex items-center gap-2">
-            <QuoteButton
-              side="sell"
-              price={bid}
-              digits={asset.digits}
-              onClick={() => fire("sell")}
-              className={cn(isSubmitting && "pointer-events-none opacity-60")}
-            />
-            <QuoteButton
-              side="buy"
-              price={ask}
-              digits={asset.digits}
-              onClick={() => fire("buy")}
-              className={cn(isSubmitting && "pointer-events-none opacity-60")}
-            />
-          </div>
-        </div>
-      )}
+      {/* Desktop: symbol, session stats and one-click trading. Mobile shows its own header. */}
+      {!isMobile && <DesktopChartHeader />}
 
       {/* Timeframes + chart tools */}
       <div
         className={cn(
-          "flex items-center justify-between gap-2 border-b border-border px-2 py-1",
+          "flex items-center justify-between gap-2 border-b border-border px-2 py-1.5",
           isMobile && "overflow-x-auto scrollbar-none",
         )}
       >
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-0.5 rounded-lg bg-secondary p-0.5" role="group" aria-label="Timeframe">
           {TIMEFRAMES.map((tf) => (
             <button
               key={tf.seconds}
@@ -528,10 +478,10 @@ export function ChartPanel() {
               onClick={() => setTimeframe(tf.seconds)}
               aria-pressed={timeframe === tf.seconds}
               className={cn(
-                "shrink-0 rounded-full px-2 py-0.5 font-mono text-[11px] font-medium tabular-nums transition-colors",
+                "h-6 shrink-0 rounded-md px-2 font-mono text-[11px] font-semibold tabular-nums transition-colors",
                 timeframe === tf.seconds
-                  ? "bg-primary text-primary-foreground"
-                  : "text-muted-foreground hover:bg-secondary hover:text-foreground",
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground",
               )}
             >
               {tf.label}

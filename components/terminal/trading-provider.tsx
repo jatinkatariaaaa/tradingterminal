@@ -1,5 +1,6 @@
 "use client"
 
+import type { ServerAccount } from "@/lib/trading/account"
 import {
   createContext,
   useCallback,
@@ -46,8 +47,16 @@ const FALLBACK_ACCOUNT: AccountState = {
   startingBalance: STARTING_BALANCE,
   balance: STARTING_BALANCE,
   dailyStartBalance: STARTING_BALANCE,
-  status: "active",
+  status: "none",
   breachReason: null,
+  tradable: false,
+  leverage: 100,
+  phase: "challenge",
+  label: "No account",
+  profitTarget: 0,
+  maxDailyDrawdown: DAILY_DRAWDOWN_PCT,
+  maxOverallDrawdown: MAX_DRAWDOWN_PCT,
+  minTradingDays: 0,
 }
 
 // Shared, draggable order draft. Both the Order Ticket and the chart overlay
@@ -178,6 +187,12 @@ interface TradingContextValue {
   resetAccount: () => void
 
   // Server integration
+  /** Every account the signed-in trader owns, newest last. */
+  accounts: ServerAccount[]
+  accountsLoading: boolean
+  /** Set when the account list could not be loaded. */
+  accountsError: string | null
+  refreshAccounts: () => Promise<void>
   accountId: string | null
   setAccountId: (id: string | null) => void
   isSubmitting: boolean
@@ -206,6 +221,9 @@ type TradingStateValue = Pick<
   | "manageSL"
   | "manageTP"
   | "accountId"
+  | "accounts"
+  | "accountsLoading"
+  | "accountsError"
   | "isSubmitting"
   | "lastError"
 >
@@ -228,6 +246,7 @@ type TradingActionsValue = Pick<
   | "modifyOrder"
   | "resetAccount"
   | "setAccountId"
+  | "refreshAccounts"
 >
 
 const MarketContext = createContext<MarketContextValue | null>(null)
@@ -335,29 +354,25 @@ export function TradingProvider({ children, initialAccountId }: TradingProviderP
   const marketPrice = prices[activeSymbol] ?? activeAsset.basePrice
 
   // ---- Server account integration ----
-  const { accounts: serverAccounts } = useServerAccounts()
+  const { accounts: serverAccounts, loading: accountsLoading, error: accountsError, refresh: refreshAccounts } = useServerAccounts()
   const [accountId, setAccountId] = useState<string | null>(initialAccountId ?? null)
 
   // Sync local state if initialAccountId prop changes.
   useEffect(() => {
-    console.log("[TradingProvider] Prop initialAccountId updated:", initialAccountId)
     if (initialAccountId) {
       setAccountId(initialAccountId)
     }
   }, [initialAccountId])
 
-  // Auto-select the first active account when accounts load and none is selected.
+  // Once accounts load, keep the selection valid: a stale or foreign id (old link) falls
+  // back to the newest tradable account, or the newest account so its history stays visible.
   useEffect(() => {
-    console.log("[TradingProvider] serverAccounts loaded:", serverAccounts.length, "accounts. Active accountId state:", accountId)
-    if (accountId) return
-    const active = serverAccounts.find(
-      (a) => a.status === "active" || a.status === "funded",
-    )
-    if (active) {
-      console.log("[TradingProvider] Auto-selecting active account:", active.id)
-      setAccountId(active.id)
-    }
-  }, [serverAccounts, accountId])
+    if (accountsLoading || serverAccounts.length === 0) return
+    if (accountId && serverAccounts.some((a) => a.id === accountId)) return
+    const newest = [...serverAccounts].sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt))
+    const pick = newest.find((a) => a.status === "active" || a.status === "funded") ?? newest[0]
+    setAccountId(pick.id)
+  }, [serverAccounts, accountsLoading, accountId])
 
   // ---- Server-authoritative state via Realtime ----
   const { positions: serverPositions, orders: serverOrders, trades: serverTrades, refresh: refreshPortfolio } =
@@ -407,6 +422,8 @@ export function TradingProvider({ children, initialAccountId }: TradingProviderP
   activeSymbolRef.current = activeSymbol
   const accountIdRef = useRef(accountId)
   accountIdRef.current = accountId
+  const accountRef = useRef(account)
+  accountRef.current = account
   const openPositionsRef = useRef(openPositions)
   openPositionsRef.current = openPositions
   const pendingOrdersRef = useRef(pendingOrders)
@@ -431,6 +448,8 @@ export function TradingProvider({ children, initialAccountId }: TradingProviderP
 
   // Reset the order draft around the new asset's price whenever it changes.
   const setActiveSymbol = useCallback((symbol: string) => {
+    // Re-selecting the current symbol keeps the ticket as it is (stop and target included).
+    if (symbol === activeSymbolRef.current) return
     setActiveSymbolState(symbol)
     const asset = getAsset(symbol)
     setDraftState((prev) => {
@@ -572,7 +591,6 @@ export function TradingProvider({ children, initialAccountId }: TradingProviderP
 
   const executeOrder = useCallback(async (): Promise<ExecutionResult | null> => {
     const acctId = accountIdRef.current
-    console.log("[TradingProvider] Executing order. accountIdRef.current:", acctId)
     if (!acctId) return { ok: false, reason: "No trading account selected." }
     if (isSubmitting) return null
 
@@ -617,7 +635,7 @@ export function TradingProvider({ children, initialAccountId }: TradingProviderP
         
         // Construct the fill result from the API response.
         const entryFill = openFillPrice(draft.direction, mid, spread)
-        const margin = marginRequired(asset, volume, entryFill, prices)
+        const margin = marginRequired(asset, volume, entryFill, prices, accountRef.current.leverage)
         setDraftState((prev) => ({ ...prev, slEnabled: false, tpEnabled: false }))
         setIsSubmitting(false)
         return {
@@ -670,7 +688,7 @@ export function TradingProvider({ children, initialAccountId }: TradingProviderP
         symbol,
         volume,
         price: draft.triggerPrice,
-        margin: marginRequired(asset, volume, pendingFill, prices),
+        margin: marginRequired(asset, volume, pendingFill, prices, accountRef.current.leverage),
         commission,
       }
     } catch (err) {
@@ -972,6 +990,9 @@ export function TradingProvider({ children, initialAccountId }: TradingProviderP
       manageSL,
       manageTP,
       accountId,
+      accounts: serverAccounts,
+      accountsLoading,
+      accountsError,
       isSubmitting,
       lastError,
     }),
@@ -987,6 +1008,9 @@ export function TradingProvider({ children, initialAccountId }: TradingProviderP
       manageSL,
       manageTP,
       accountId,
+      serverAccounts,
+      accountsLoading,
+      accountsError,
       isSubmitting,
       lastError,
     ],
@@ -1013,6 +1037,7 @@ export function TradingProvider({ children, initialAccountId }: TradingProviderP
       modifyOrder,
       resetAccount,
       setAccountId,
+      refreshAccounts,
     }),
     [
       setActiveSymbol,
@@ -1032,6 +1057,7 @@ export function TradingProvider({ children, initialAccountId }: TradingProviderP
       modifyOrder,
       resetAccount,
       setAccountId,
+      refreshAccounts,
     ],
   )
 

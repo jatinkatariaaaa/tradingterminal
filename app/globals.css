@@ -4,145 +4,143 @@
 @custom-variant dark (&:is(.dark *));
 
 /* ==========================================================================
-   cTrader-inspired dual-theme design system
-   - LIGHT: white / soft off-white surfaces, rounded cards, pill controls,
-     GREEN = buy/profit, ORANGE = sell/loss, near-black primary CTA.
-   - DARK: the same language translated to near-black desaturated surfaces.
-   Every color used anywhere in the terminal (including the chart canvas)
-   resolves from these tokens — no component hardcodes a hex.
+   TPP Terminal — the trading room of The People Prop
+   Same palette as the website and dashboard: ink surfaces, volt (lime)
+   accent, emerald for buy / profit, coral red for sell / loss.
+   Dark is the default; light mirrors the dashboard's pearl canvas.
+   Every colour in the terminal, chart canvas included, comes from here.
    ========================================================================== */
 
-/* =============== LIGHT THEME (default — cTrader style) =============== */
+/* =============== LIGHT (pearl) =============== */
 :root {
-  --background: oklch(0.965 0.002 250);
-  --foreground: oklch(0.155 0.005 250);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.155 0.005 250);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.155 0.005 250);
-  /* cTrader's primary CTA is a near-black pill ("New order", "Go live") */
-  --primary: oklch(0.205 0.005 250);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.945 0.003 250);
-  --secondary-foreground: oklch(0.205 0.005 250);
-  --muted: oklch(0.945 0.003 250);
-  --muted-foreground: oklch(0.5 0.01 250);
-  --accent: oklch(0.94 0.004 250);
-  --accent-foreground: oklch(0.205 0.005 250);
-  --destructive: oklch(0.55 0.21 27);
-  --destructive-foreground: oklch(0.985 0 0);
-  --border: oklch(0.905 0.004 250);
-  --input: oklch(0.905 0.004 250);
-  --ring: oklch(0.55 0.16 152);
+  --background: oklch(0.968 0.004 165);
+  --foreground: oklch(0.18 0.008 165);
+  --card: oklch(0.995 0.001 165);
+  --card-foreground: oklch(0.18 0.008 165);
+  --popover: oklch(0.995 0.001 165);
+  --popover-foreground: oklch(0.18 0.008 165);
+  /* volt CTA with ink text, like the website */
+  --primary: oklch(0.93 0.2 125);
+  --primary-foreground: oklch(0.17 0.008 165);
+  --secondary: oklch(0.94 0.005 165);
+  --secondary-foreground: oklch(0.22 0.008 165);
+  --muted: oklch(0.94 0.005 165);
+  --muted-foreground: oklch(0.5 0.012 170);
+  --accent: oklch(0.93 0.008 165);
+  --accent-foreground: oklch(0.2 0.008 165);
+  --destructive: oklch(0.58 0.2 25);
+  --destructive-foreground: oklch(0.99 0 0);
+  --border: oklch(0.9 0.006 165);
+  --input: oklch(0.9 0.006 165);
+  --ring: oklch(0.48 0.08 170);
 
-  /* --- Trading identity: GREEN buy / ORANGE sell (cTrader convention) --- */
-  --buy: oklch(0.56 0.155 152);
-  --buy-foreground: oklch(0.985 0 0);
-  --sell: oklch(0.63 0.19 41);
-  --sell-foreground: oklch(0.985 0 0);
-  --profit: oklch(0.54 0.15 152);
-  --loss: oklch(0.6 0.19 38);
-  --warning: oklch(0.72 0.15 80);
+  --buy: oklch(0.58 0.14 162);
+  --buy-foreground: oklch(0.99 0 0);
+  --sell: oklch(0.6 0.2 24);
+  --sell-foreground: oklch(0.99 0 0);
+  --profit: oklch(0.55 0.14 162);
+  --loss: oklch(0.58 0.2 24);
+  --warning: oklch(0.72 0.15 75);
+  --volt: oklch(0.93 0.2 125);
+  --volt-ink: oklch(0.42 0.11 130);
 
-  /* --- Surface hierarchy (0 = page, 3 = highest elevation) --- */
-  --surface-0: oklch(0.965 0.002 250);
-  --surface-1: oklch(1 0 0);
-  --surface-2: oklch(0.975 0.002 250);
-  --surface-3: oklch(0.945 0.003 250);
+  --surface-0: oklch(0.968 0.004 165);
+  --surface-1: oklch(0.995 0.001 165);
+  --surface-2: oklch(0.978 0.003 165);
+  --surface-3: oklch(0.948 0.005 165);
 
-  /* --- Chart canvas (read by lightweight-charts via getComputedStyle) --- */
-  --chart-up: oklch(0.56 0.155 152);
-  --chart-down: oklch(0.63 0.19 41);
-  --chart-grid: oklch(0.15 0.005 250 / 0.055);
-  --chart-axis-text: oklch(0.5 0.01 250);
-  --chart-border: oklch(0.15 0.005 250 / 0.1);
-  --chart-crosshair: oklch(0.45 0.01 250 / 0.6);
+  --chart-up: oklch(0.58 0.14 162);
+  --chart-down: oklch(0.6 0.2 24);
+  --chart-grid: oklch(0.2 0.01 165 / 0.06);
+  --chart-axis-text: oklch(0.5 0.012 170);
+  --chart-border: oklch(0.2 0.01 165 / 0.1);
+  --chart-crosshair: oklch(0.45 0.01 170 / 0.6);
 
-  --chart-1: oklch(0.56 0.155 152);
-  --chart-2: oklch(0.63 0.19 41);
-  --chart-3: oklch(0.55 0.14 235);
-  --chart-4: oklch(0.72 0.15 80);
-  --chart-5: oklch(0.55 0.16 300);
+  --chart-1: oklch(0.58 0.14 162);
+  --chart-2: oklch(0.6 0.2 24);
+  --chart-3: oklch(0.55 0.12 235);
+  --chart-4: oklch(0.72 0.15 75);
+  --chart-5: oklch(0.55 0.15 300);
 
-  --radius: 0.75rem;
+  --radius: 0.875rem;
 
-  --sidebar: oklch(1 0 0);
-  --sidebar-foreground: oklch(0.155 0.005 250);
-  --sidebar-primary: oklch(0.205 0.005 250);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.94 0.004 250);
-  --sidebar-accent-foreground: oklch(0.205 0.005 250);
-  --sidebar-border: oklch(0.905 0.004 250);
-  --sidebar-ring: oklch(0.55 0.16 152);
+  --sidebar: oklch(0.995 0.001 165);
+  --sidebar-foreground: oklch(0.18 0.008 165);
+  --sidebar-primary: oklch(0.93 0.2 125);
+  --sidebar-primary-foreground: oklch(0.17 0.008 165);
+  --sidebar-accent: oklch(0.94 0.005 165);
+  --sidebar-accent-foreground: oklch(0.2 0.008 165);
+  --sidebar-border: oklch(0.9 0.006 165);
+  --sidebar-ring: oklch(0.48 0.08 170);
 }
 
-/* =============== DARK THEME =============== */
+/* =============== DARK (ink) =============== */
 .dark {
-  --background: oklch(0.155 0.008 250);
-  --foreground: oklch(0.93 0.005 250);
-  --card: oklch(0.195 0.01 250);
-  --card-foreground: oklch(0.93 0.005 250);
-  --popover: oklch(0.195 0.01 250);
-  --popover-foreground: oklch(0.93 0.005 250);
-  /* Inverted pill CTA in dark: near-white on near-black */
-  --primary: oklch(0.93 0.005 250);
-  --primary-foreground: oklch(0.175 0.008 250);
-  --secondary: oklch(0.25 0.01 250);
-  --secondary-foreground: oklch(0.93 0.005 250);
-  --muted: oklch(0.235 0.009 250);
-  --muted-foreground: oklch(0.65 0.008 250);
-  --accent: oklch(0.27 0.011 250);
-  --accent-foreground: oklch(0.93 0.005 250);
-  --destructive: oklch(0.62 0.2 27);
-  --destructive-foreground: oklch(0.97 0.005 250);
-  --border: oklch(0.28 0.01 250);
-  --input: oklch(0.28 0.01 250);
-  --ring: oklch(0.72 0.16 152);
+  --background: oklch(0.15 0.006 165);
+  --foreground: oklch(0.955 0.005 165);
+  --card: oklch(0.185 0.008 165);
+  --card-foreground: oklch(0.955 0.005 165);
+  --popover: oklch(0.205 0.009 165);
+  --popover-foreground: oklch(0.955 0.005 165);
+  --primary: oklch(0.93 0.2 125);
+  --primary-foreground: oklch(0.17 0.008 165);
+  --secondary: oklch(0.24 0.009 165);
+  --secondary-foreground: oklch(0.955 0.005 165);
+  --muted: oklch(0.225 0.009 165);
+  --muted-foreground: oklch(0.67 0.012 170);
+  --accent: oklch(0.255 0.01 165);
+  --accent-foreground: oklch(0.955 0.005 165);
+  --destructive: oklch(0.66 0.2 24);
+  --destructive-foreground: oklch(0.99 0 0);
+  --border: oklch(0.275 0.01 165);
+  --input: oklch(0.275 0.01 165);
+  --ring: oklch(0.93 0.2 125);
 
-  /* --- Trading identity: same green/orange tuned for dark --- */
-  --buy: oklch(0.7 0.165 152);
-  --buy-foreground: oklch(0.155 0.008 250);
-  --sell: oklch(0.71 0.18 43);
-  --sell-foreground: oklch(0.155 0.008 250);
-  --profit: oklch(0.74 0.165 152);
-  --loss: oklch(0.72 0.18 43);
-  --warning: oklch(0.8 0.14 80);
+  --buy: oklch(0.74 0.16 160);
+  --buy-foreground: oklch(0.17 0.008 165);
+  --sell: oklch(0.68 0.2 22);
+  --sell-foreground: oklch(0.99 0 0);
+  --profit: oklch(0.78 0.16 160);
+  --loss: oklch(0.72 0.18 22);
+  --warning: oklch(0.83 0.14 80);
+  --volt: oklch(0.93 0.2 125);
+  --volt-ink: oklch(0.93 0.2 125);
 
-  /* --- Surface hierarchy --- */
-  --surface-0: oklch(0.155 0.008 250);
-  --surface-1: oklch(0.195 0.01 250);
-  --surface-2: oklch(0.225 0.01 250);
-  --surface-3: oklch(0.26 0.011 250);
+  --surface-0: oklch(0.15 0.006 165);
+  --surface-1: oklch(0.185 0.008 165);
+  --surface-2: oklch(0.215 0.009 165);
+  --surface-3: oklch(0.25 0.01 165);
 
-  /* --- Chart canvas --- */
-  --chart-up: oklch(0.7 0.165 152);
-  --chart-down: oklch(0.71 0.18 43);
+  --chart-up: oklch(0.74 0.16 160);
+  --chart-down: oklch(0.68 0.2 22);
   --chart-grid: oklch(1 0 0 / 0.045);
-  --chart-axis-text: oklch(0.65 0.008 250);
-  --chart-border: oklch(1 0 0 / 0.09);
-  --chart-crosshair: oklch(0.7 0.005 250 / 0.6);
+  --chart-axis-text: oklch(0.67 0.012 170);
+  --chart-border: oklch(1 0 0 / 0.08);
+  --chart-crosshair: oklch(0.8 0.01 170 / 0.5);
 
-  --chart-1: oklch(0.7 0.165 152);
-  --chart-2: oklch(0.71 0.18 43);
-  --chart-3: oklch(0.68 0.13 235);
-  --chart-4: oklch(0.8 0.14 80);
-  --chart-5: oklch(0.68 0.14 300);
+  --chart-1: oklch(0.74 0.16 160);
+  --chart-2: oklch(0.68 0.2 22);
+  --chart-3: oklch(0.7 0.12 235);
+  --chart-4: oklch(0.83 0.14 80);
+  --chart-5: oklch(0.7 0.13 300);
 
-  --radius: 0.75rem;
+  --radius: 0.875rem;
 
-  --sidebar: oklch(0.175 0.009 250);
-  --sidebar-foreground: oklch(0.93 0.005 250);
-  --sidebar-primary: oklch(0.93 0.005 250);
-  --sidebar-primary-foreground: oklch(0.175 0.008 250);
-  --sidebar-accent: oklch(0.27 0.011 250);
-  --sidebar-accent-foreground: oklch(0.93 0.005 250);
-  --sidebar-border: oklch(0.28 0.01 250);
-  --sidebar-ring: oklch(0.72 0.16 152);
+  --sidebar: oklch(0.17 0.007 165);
+  --sidebar-foreground: oklch(0.955 0.005 165);
+  --sidebar-primary: oklch(0.93 0.2 125);
+  --sidebar-primary-foreground: oklch(0.17 0.008 165);
+  --sidebar-accent: oklch(0.255 0.01 165);
+  --sidebar-accent-foreground: oklch(0.955 0.005 165);
+  --sidebar-border: oklch(0.275 0.01 165);
+  --sidebar-ring: oklch(0.93 0.2 125);
 }
 
 @theme inline {
-  --font-sans: 'Geist', 'Geist Fallback';
-  --font-mono: 'Geist Mono', 'Geist Mono Fallback';
+  --font-sans: var(--font-inter), 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: var(--font-jetbrains), 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace;
+  --color-volt: var(--volt);
+  --color-volt-ink: var(--volt-ink);
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);

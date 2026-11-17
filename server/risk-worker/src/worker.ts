@@ -118,7 +118,7 @@ async function tickAccount(
     if (!hit) continue
     const spread = spreadOf(asset, t)
     const entryFill = openFillPrice(o.direction, t, spread)
-    const margin = marginRequired(asset, o.volume, entryFill, prices)
+    const margin = marginRequired(asset, o.volume, entryFill, prices, Number(account.leverage) || 100)
     try {
       // fill_order is atomic and idempotent: it locks the order FOR UPDATE and
       // no-ops unless still 'working', so an order can NEVER open more than one

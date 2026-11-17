@@ -1,221 +1,84 @@
 "use client"
 
-import { useEffect, useState, useRef } from "react"
-import { CandlestickChart, LayoutList, Wallet, User, X } from "lucide-react"
-import { cn } from "@/lib/utils"
-import { useIsMobile } from "@/hooks/use-mobile"
-import { useTradingState } from "./trading-provider"
-import { AccountBar, MobileAccountDetails } from "./account-bar"
-import { TopBar } from "./shell/top-bar"
+import { ExternalLink, LayoutDashboard, LogOut, RotateCw, Sparkles } from "lucide-react"
+import { useIsMobileState } from "@/hooks/use-mobile"
+import { signOut } from "@/app/(auth)/actions"
+import { useTradingActions, useTradingState } from "./trading-provider"
 import { CommandPalette } from "./shell/command-palette"
-import { useHotkeys } from "./shell/use-hotkeys"
-import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable"
-import { AssetPanel } from "./asset-panel"
-import { ChartPanel } from "./chart-panel"
-import { OrderTicket } from "./order-ticket"
-import { MobileOrderPanel } from "./order-ticket"
-import { ManagePanel } from "./manage-panel"
-import { PositionsPanel } from "./positions-panel"
+import { MobileShell } from "./mobile/mobile-shell"
+import { DesktopShell } from "./desktop/desktop-shell"
+import { SITE_URL, TppMark, TppTile } from "./brand"
 
-/** Right-panel slot: the position manager takes over when one is being managed. */
-function RightPanel() {
-  const { managePositionId } = useTradingState()
-  return managePositionId ? <ManagePanel /> : <OrderTicket />
-}
-
-type MobileTab = "chart" | "markets" | "positions" | "account"
-
-const TABS: { key: MobileTab; label: string; icon: typeof CandlestickChart }[] = [
-  { key: "chart", label: "Chart", icon: CandlestickChart },
-  { key: "markets", label: "Markets", icon: LayoutList },
-  { key: "positions", label: "Positions", icon: Wallet },
-  { key: "account", label: "Account", icon: User },
-]
-
-function MobileLayout() {
-  const [tab, setTab] = useState<MobileTab>("chart")
-  const { managePositionId, activeSymbol } = useTradingState()
-  const prevSymbolRef = useRef(activeSymbol)
-  const [showFullManage, setShowFullManage] = useState(false)
-
-  // When active symbol changes (via watchlist or position click), switch to chart tab
-  useEffect(() => {
-    if (activeSymbol !== prevSymbolRef.current) {
-      setTab("chart")
-      prevSymbolRef.current = activeSymbol
-    }
-  }, [activeSymbol])
-
-  // Close full manage overlay when the managed position is cleared
-  useEffect(() => {
-    if (!managePositionId) setShowFullManage(false)
-    // When a position/order starts being managed (from any tab), switch to chart
-    if (managePositionId) setTab("chart")
-  }, [managePositionId])
-
+/** Signed in, but no trading account yet: point the trader to the dashboard. */
+function NoAccount({ error, onRetry }: { error: string | null; onRetry: () => void }) {
   return (
-    <div className="flex h-[100dvh] flex-col overflow-hidden bg-background text-foreground">
-      {/* Compact top bar — symbol + price + P&L + connection (single row) */}
-      <AccountBar />
-
-      {/* Active panel content */}
-      <main className="relative min-h-0 flex-1">
-        {/* Chart tab: chart + compact order panel on same screen (MT5-style) */}
-        <Panel show={tab === "chart"}>
-          <div className="flex h-full flex-col">
-            {/* Chart area */}
-            <div className="min-h-0 flex-1">
-              <ChartPanel />
-            </div>
-            {/* Compact order execution below chart — always visible */}
-            <div className="shrink-0">
-              <MobileOrderPanel onOpenFullManage={() => setShowFullManage(true)} />
-            </div>
-          </div>
-        </Panel>
-
-        <Panel show={tab === "markets"}>
-          <AssetPanel />
-        </Panel>
-
-        <Panel show={tab === "positions"}>
-          <PositionsPanel />
-        </Panel>
-
-        <Panel show={tab === "account"}>
-          <MobileAccountDetails />
-        </Panel>
-
-        {/* Full ManagePanel overlay (slides up when user taps "Manage ▲") */}
-        {showFullManage && managePositionId && (
-          <div className="absolute inset-0 z-50 flex flex-col bg-background/95 backdrop-blur-sm animate-in slide-in-from-bottom duration-200">
-            <div className="flex items-center justify-between border-b border-border px-3 py-2">
-              <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                Full Position Manager
-              </span>
-              <button
-                type="button"
-                onClick={() => setShowFullManage(false)}
-                className="rounded-full p-1 text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-            <div className="min-h-0 flex-1 overflow-y-auto">
-              <ManagePanel />
-            </div>
-          </div>
+    <div className="relative flex min-h-[100dvh] flex-col overflow-hidden bg-background text-foreground">
+      <div aria-hidden className="pointer-events-none absolute -top-40 left-1/2 h-[480px] w-[720px] -translate-x-1/2 rounded-full bg-volt/10 blur-[110px]" />
+      <header className="relative flex items-center justify-between px-5 pt-[max(env(safe-area-inset-top),18px)] pb-3">
+        <span className="flex items-center gap-2.5">
+          <TppTile />
+          <span className="text-[14px] font-semibold tracking-tight">TPP Terminal</span>
+        </span>
+        <form action={signOut}>
+          <button type="submit" className="flex h-9 items-center gap-1.5 rounded-full bg-secondary px-3.5 text-[12.5px] font-semibold text-muted-foreground hover:text-foreground">
+            <LogOut className="h-3.5 w-3.5" /> Sign out
+          </button>
+        </form>
+      </header>
+      <main className="relative mx-auto flex w-full max-w-[440px] flex-1 flex-col justify-center px-6 pb-16">
+        <TppMark className="h-7 text-foreground" />
+        {error ? (
+          <>
+            <h1 className="mt-8 text-[30px] leading-[1.1] font-bold tracking-[-0.03em]">We couldn&apos;t load your accounts</h1>
+            <p className="mt-3 text-[15px] leading-relaxed text-muted-foreground">The connection dropped while loading. Your accounts and open trades are safe on our servers; try again in a moment.</p>
+          </>
+        ) : (
+          <>
+            <h1 className="mt-8 text-[30px] leading-[1.1] font-bold tracking-[-0.03em]">No trading account on this login yet</h1>
+            <p className="mt-3 text-[15px] leading-relaxed text-muted-foreground">
+              Accounts are issued from your dashboard the moment a challenge is paid. Pick an account type there, and it opens here automatically with its rules loaded.
+            </p>
+          </>
         )}
-      </main>
-
-      {/* Bottom navigation */}
-      <nav className="flex shrink-0 items-stretch border-t border-border bg-card pb-[env(safe-area-inset-bottom)]">
-        {TABS.map(({ key, label, icon: Icon }) => {
-          const active = tab === key
-          return (
-            <button
-              key={key}
-              type="button"
-              onClick={() => setTab(key)}
-              aria-current={active ? "page" : undefined}
-              className={cn(
-                "flex flex-1 flex-col items-center justify-center gap-0.5 py-2 text-[10px] font-medium transition-colors",
-                active ? "text-primary" : "text-muted-foreground",
-              )}
-            >
-              <Icon className={cn("h-4.5 w-4.5", active && "stroke-[2.5]")} />
-              {label}
+        <div className="mt-8 grid gap-2.5">
+          {error ? (
+            <button type="button" onClick={onRetry} className="flex h-12 items-center justify-center gap-2 rounded-2xl bg-primary text-[15px] font-semibold text-primary-foreground">
+              <RotateCw className="h-4 w-4" /> Try again
             </button>
-          )
-        })}
-      </nav>
-    </div>
-  )
-}
-
-
-/**
- * Keeps a panel mounted (so the chart instance and its state survive tab
- * switches) but uses `display:none` when inactive. We can't use `visibility`
- * here because the chart overlay sets `visibility: visible` on its lines every
- * frame, which would bleed through onto other tabs. `display:none` hides all
- * descendants unconditionally, and the chart's `autoSize` ResizeObserver
- * re-measures the container when it becomes visible again.
- */
-function Panel({ show, children }: { show: boolean; children: React.ReactNode }) {
-  return (
-    <div className={cn("absolute inset-0 flex min-h-0 flex-col", !show && "hidden")} aria-hidden={!show}>
-      {children}
-    </div>
-  )
-}
-
-function DesktopLayout() {
-  useHotkeys()
-  return (
-    <div className="flex h-screen flex-col overflow-hidden bg-background text-foreground">
-      <TopBar />
-      <main className="min-h-0 flex-1">
-        <ResizablePanelGroup direction="horizontal" autoSaveId="tt-layout-h">
-          {/* LEFT — Watchlist (collapsible) */}
-          <ResizablePanel
-            id="watchlist"
-            order={1}
-            defaultSize={18}
-            minSize={13}
-            collapsible
-            collapsedSize={0}
-            className="bg-card"
-          >
-            <AssetPanel />
-          </ResizablePanel>
-          <ResizableHandle className="w-px bg-border data-[resize-handle-state=hover]:bg-ring data-[resize-handle-state=drag]:bg-ring" />
-
-          {/* CENTER — Chart + bottom dock */}
-          <ResizablePanel id="center" order={2} defaultSize={60} minSize={32}>
-            <ResizablePanelGroup direction="vertical" autoSaveId="tt-layout-v">
-              <ResizablePanel id="chart" order={1} defaultSize={64} minSize={30}>
-                <ChartPanel />
-              </ResizablePanel>
-              <ResizableHandle className="h-px bg-border data-[resize-handle-state=hover]:bg-ring data-[resize-handle-state=drag]:bg-ring" />
-              <ResizablePanel
-                id="dock"
-                order={2}
-                defaultSize={36}
-                minSize={12}
-                collapsible
-                collapsedSize={0}
-                className="bg-card"
-              >
-                <PositionsPanel />
-              </ResizablePanel>
-            </ResizablePanelGroup>
-          </ResizablePanel>
-          <ResizableHandle className="w-px bg-border data-[resize-handle-state=hover]:bg-ring data-[resize-handle-state=drag]:bg-ring" />
-
-          {/* RIGHT — Order ticket / manage (collapsible) */}
-          <ResizablePanel
-            id="ticket"
-            order={3}
-            defaultSize={22}
-            minSize={17}
-            collapsible
-            collapsedSize={0}
-            className="bg-card"
-          >
-            <RightPanel />
-          </ResizablePanel>
-        </ResizablePanelGroup>
+          ) : null}
+          <a href={`${SITE_URL}/dashboard/new-challenge`} className={error ? "flex h-12 items-center justify-center gap-2 rounded-2xl border border-border bg-card text-[15px] font-semibold" : "flex h-12 items-center justify-center gap-2 rounded-2xl bg-primary text-[15px] font-semibold text-primary-foreground transition-transform active:scale-[0.99]"}>
+            <Sparkles className="h-4 w-4" /> Start a challenge
+          </a>
+          <a href={`${SITE_URL}/dashboard`} className="flex h-12 items-center justify-center gap-2 rounded-2xl border border-border bg-card text-[15px] font-semibold">
+            <LayoutDashboard className="h-4 w-4" /> Open dashboard
+          </a>
+          <a href={`${SITE_URL}/challenges`} className="mt-2 flex items-center justify-center gap-1.5 text-[13px] font-semibold text-muted-foreground hover:text-foreground">
+            Compare account types <ExternalLink className="h-3.5 w-3.5" />
+          </a>
+        </div>
       </main>
+    </div>
+  )
+}
+
+function Loading() {
+  return (
+    <div className="flex min-h-[100dvh] flex-col items-center justify-center gap-4 bg-background">
+      <TppTile className="h-12 w-12 animate-pulse rounded-[15px]" />
+      <p className="text-[13px] text-muted-foreground">Loading your accounts…</p>
     </div>
   )
 }
 
 export function TerminalShell() {
-  const isMobile = useIsMobile()
+  const isMobile = useIsMobileState()
+  const { accounts, accountsLoading, accountsError } = useTradingState()
+  const { refreshAccounts } = useTradingActions()
+  if (isMobile === undefined || (accountsLoading && accounts.length === 0)) return <Loading />
+  if (accounts.length === 0) return <NoAccount error={accountsError} onRetry={() => void refreshAccounts()} />
   return (
     <>
-      {isMobile ? <MobileLayout /> : <DesktopLayout />}
+      {isMobile ? <MobileShell /> : <DesktopShell />}
       {!isMobile && <CommandPalette />}
     </>
   )

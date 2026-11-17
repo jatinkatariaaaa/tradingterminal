@@ -18,7 +18,7 @@ export const supabase: SupabaseClient = createClient(
 
 export type Direction = "buy" | "sell"
 export type CloseReason = "tp" | "sl" | "manual" | "breach"
-export type AccountStatus = "active" | "passed" | "breached" | "funded"
+export type AccountStatus = "active" | "passed" | "breached" | "funded" | "suspended"
 
 export interface AccountRow {
   id: string
@@ -32,6 +32,7 @@ export interface AccountRow {
   max_overall_drawdown: number
   profit_target: number
   last_daily_reset_at: string | null
+  leverage: number
 }
 
 export interface PositionRow {
@@ -67,7 +68,7 @@ export async function fetchTradableAccounts(): Promise<AccountRow[]> {
   const { data, error } = await supabase
     .from("accounts")
     .select(
-      "id, status, phase, balance, equity, starting_balance, daily_start_balance, max_daily_drawdown, max_overall_drawdown, profit_target, last_daily_reset_at",
+      "id, status, phase, balance, equity, starting_balance, daily_start_balance, max_daily_drawdown, max_overall_drawdown, profit_target, last_daily_reset_at, leverage",
     )
     .in("status", ["active", "funded"])
   if (error) throw error
@@ -78,7 +79,7 @@ export async function fetchAccountSnapshot(accountId: string): Promise<AccountRo
   const { data, error } = await supabase
     .from("accounts")
     .select(
-      "id, status, phase, balance, equity, starting_balance, daily_start_balance, max_daily_drawdown, max_overall_drawdown, profit_target, last_daily_reset_at",
+      "id, status, phase, balance, equity, starting_balance, daily_start_balance, max_daily_drawdown, max_overall_drawdown, profit_target, last_daily_reset_at, leverage",
     )
     .eq("id", accountId)
     .single()

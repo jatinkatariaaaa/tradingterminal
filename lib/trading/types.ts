@@ -67,7 +67,7 @@ export interface ClosedTrade extends OpenPosition {
   reason: "tp" | "sl" | "manual" | "breach"
 }
 
-export type AccountStatus = "active" | "breached"
+export type AccountStatus = "active" | "funded" | "passed" | "breached" | "suspended" | "none"
 
 export interface AccountState {
   startingBalance: number
@@ -77,4 +77,14 @@ export interface AccountState {
   dailyStartBalance: number
   status: AccountStatus
   breachReason: string | null
+  /** True only for active and funded accounts: the engine rejects orders on any other status. */
+  tradable: boolean
+  leverage: number
+  phase: "challenge" | "funded"
+  label: string
+  /** Fractions of the starting balance (0.08 = 8%); 0 target means a funded / risk-only account. */
+  profitTarget: number
+  maxDailyDrawdown: number
+  maxOverallDrawdown: number
+  minTradingDays: number
 }

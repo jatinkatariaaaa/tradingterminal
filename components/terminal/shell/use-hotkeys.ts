@@ -2,6 +2,7 @@
 
 import { useEffect } from "react"
 import { useTrading } from "../trading-provider"
+import { openShortcuts } from "../desktop/events"
 
 /**
  * Global keyboard shortcuts for the desktop terminal:
@@ -35,6 +36,12 @@ export function useHotkeys() {
       if (document.querySelector('[role="dialog"][data-state="open"]')) return
       // Skip combos owned by the browser or the command palette.
       if (e.metaKey || e.ctrlKey || e.altKey) return
+
+      if (e.key === "?") {
+        e.preventDefault()
+        openShortcuts()
+        return
+      }
 
       switch (e.key) {
         case "b":

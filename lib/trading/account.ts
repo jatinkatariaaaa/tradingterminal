@@ -16,7 +16,7 @@ export type AccountPhase = "challenge" | "funded"
  *  - breached: a drawdown limit was hit; account is frozen (terminal).
  *  - funded:   promoted live-funded account (kept distinct so the UI can badge it).
  */
-export type ServerAccountStatus = "active" | "passed" | "breached" | "funded"
+export type ServerAccountStatus = "active" | "passed" | "breached" | "funded" | "suspended"
 
 /** A single evaluation account. A user may own many (multiple challenges). */
 export interface ServerAccount {
@@ -43,6 +43,11 @@ export interface ServerAccount {
   profitTarget: number
   /** Why the account was breached, if applicable. */
   breachReason: string | null
+  /** Leverage the engine applies to new positions (1:N). */
+  leverage: number
+  /** Evaluation phases must trade on at least this many sessions before they can pass. */
+  minTradingDays: number
+  programKey: string | null
   createdAt: string
   updatedAt: string
 }

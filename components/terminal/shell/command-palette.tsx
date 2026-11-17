@@ -2,28 +2,30 @@
 
 import { useEffect, useState } from "react"
 import { useTheme } from "next-themes"
-import { Moon, Star, Sun, TrendingDown, TrendingUp } from "lucide-react"
-import {
-  CommandDialog,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-  CommandSeparator,
-} from "@/components/ui/command"
-import { ASSETS, CATEGORY_LABELS, formatPrice } from "@/lib/trading/assets"
-import { useMarket, useTradingActions } from "../trading-provider"
+import { ArrowUpRight, Keyboard, Moon, Star, Sun, TrendingDown, TrendingUp, Wallet } from "lucide-react"
+import { CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList, CommandSeparator } from "@/components/ui/command"
+import { ASSETS, formatPrice } from "@/lib/trading/assets"
 import { useWatchlist } from "@/hooks/use-watchlist"
+import { useMarket, useTradingActions, useTradingState } from "../trading-provider"
+import { accountTitle } from "../account-switcher"
+import { SITE_URL } from "../brand"
+import { OPEN_PALETTE, openShortcuts } from "../desktop/events"
+
+const GROUPS = [
+  { key: "forex", label: "Forex" },
+  { key: "commodities", label: "Metals" },
+  { key: "crypto", label: "Crypto" },
+] as const
 
 /**
- * Ctrl/Cmd+K command palette — instant symbol switching plus quick actions.
- * Listens for the shortcut globally so it works from any panel.
+ * Ctrl+K (or /) command palette: jump to any symbol, stage a buy or sell, switch
+ * account, or open the dashboard, without leaving the keyboard.
  */
 export function CommandPalette() {
   const [open, setOpen] = useState(false)
   const { prices } = useMarket()
-  const { setActiveSymbol, setDraft } = useTradingActions()
+  const { accounts, accountId } = useTradingState()
+  const { setActiveSymbol, setDraft, setAccountId } = useTradingActions()
   const { toggleFavorite, isFavorite } = useWatchlist()
   const { resolvedTheme, setTheme } = useTheme()
 
@@ -32,41 +34,41 @@ export function CommandPalette() {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
         e.preventDefault()
         setOpen((v) => !v)
+        return
+      }
+      const t = e.target as HTMLElement | null
+      const typing = !!t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT" || t.isContentEditable)
+      if (e.key === "/" && !typing && !e.metaKey && !e.ctrlKey && !e.altKey) {
+        e.preventDefault()
+        setOpen(true)
       }
     }
+    const show = () => setOpen(true)
     window.addEventListener("keydown", onKey)
-    return () => window.removeEventListener("keydown", onKey)
+    window.addEventListener(OPEN_PALETTE, show)
+    return () => {
+      window.removeEventListener("keydown", onKey)
+      window.removeEventListener(OPEN_PALETTE, show)
+    }
   }, [])
 
-  const pick = (symbol: string, direction?: "buy" | "sell") => {
-    setActiveSymbol(symbol)
-    if (direction) setDraft({ direction, type: "market" })
+  const run = (fn: () => void) => {
+    fn()
     setOpen(false)
   }
 
-  const grouped = (["forex", "crypto", "commodities"] as const).map((cat) => ({
-    cat,
-    assets: ASSETS.filter((a) => a.category === cat),
-  }))
-
   return (
-    <CommandDialog open={open} onOpenChange={setOpen} title="Command palette" description="Search markets and actions">
-      <CommandInput placeholder="Search markets or actions…" />
-      <CommandList>
-        <CommandEmpty>No results found.</CommandEmpty>
-        {grouped.map(({ cat, assets }) => (
-          <CommandGroup key={cat} heading={CATEGORY_LABELS[cat]}>
-            {assets.map((a) => (
-              <CommandItem
-                key={a.symbol}
-                value={`${a.symbol} ${a.label}`}
-                onSelect={() => pick(a.symbol)}
-              >
-                <span className="font-semibold">{a.symbol}</span>
-                <span className="text-muted-foreground">{a.label}</span>
-                <span className="ml-auto font-mono text-xs tabular-nums text-muted-foreground">
-                  {formatPrice(prices[a.symbol] ?? a.basePrice, a.digits)}
-                </span>
+    <CommandDialog open={open} onOpenChange={setOpen} title="Search" description="Search markets, accounts and actions">
+      <CommandInput placeholder="Symbol, account or action…" />
+      <CommandList className="max-h-[420px]">
+        <CommandEmpty>Nothing matches.</CommandEmpty>
+        {GROUPS.map(({ key, label }) => (
+          <CommandGroup key={key} heading={label}>
+            {ASSETS.filter((a) => a.category === key).map((a) => (
+              <CommandItem key={a.symbol} value={`${a.symbol} ${a.label}`} onSelect={() => run(() => setActiveSymbol(a.symbol))}>
+                <span className="w-[76px] font-semibold">{a.symbol}</span>
+                <span className="truncate text-muted-foreground">{a.label}</span>
+                <span className="ml-auto font-mono text-xs text-muted-foreground tabular-nums">{formatPrice(prices[a.symbol] ?? a.basePrice, a.digits)}</span>
                 <button
                   type="button"
                   onClick={(e) => {
@@ -82,25 +84,37 @@ export function CommandPalette() {
             ))}
           </CommandGroup>
         ))}
+        {accounts.length > 1 ? (
+          <>
+            <CommandSeparator />
+            <CommandGroup heading="Accounts">
+              {accounts.map((a) => (
+                <CommandItem key={a.id} value={`account ${accountTitle(a)} ${a.id}`} onSelect={() => run(() => setAccountId(a.id))}>
+                  <Wallet />
+                  <span className="font-medium">{accountTitle(a)}</span>
+                  <span className="text-muted-foreground capitalize">{a.status}</span>
+                  {a.id === accountId ? <span className="ml-auto text-xs text-muted-foreground">current</span> : null}
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          </>
+        ) : null}
         <CommandSeparator />
         <CommandGroup heading="Actions">
-          <CommandItem value="buy current market" onSelect={() => { setDraft({ direction: "buy", type: "market" }); setOpen(false) }}>
-            <TrendingUp className="text-buy" />
-            Set ticket to Buy
+          <CommandItem value="buy ticket direction" onSelect={() => run(() => setDraft({ direction: "buy", type: "market" }))}>
+            <TrendingUp className="text-buy" /> Set the ticket to buy
           </CommandItem>
-          <CommandItem value="sell current market" onSelect={() => { setDraft({ direction: "sell", type: "market" }); setOpen(false) }}>
-            <TrendingDown className="text-sell" />
-            Set ticket to Sell
+          <CommandItem value="sell ticket direction" onSelect={() => run(() => setDraft({ direction: "sell", type: "market" }))}>
+            <TrendingDown className="text-sell" /> Set the ticket to sell
           </CommandItem>
-          <CommandItem
-            value="toggle theme light dark"
-            onSelect={() => {
-              setTheme(resolvedTheme === "dark" ? "light" : "dark")
-              setOpen(false)
-            }}
-          >
-            {resolvedTheme === "dark" ? <Sun /> : <Moon />}
-            Switch to {resolvedTheme === "dark" ? "light" : "dark"} theme
+          <CommandItem value="theme light dark" onSelect={() => run(() => setTheme(resolvedTheme === "dark" ? "light" : "dark"))}>
+            {resolvedTheme === "dark" ? <Sun /> : <Moon />} Switch to {resolvedTheme === "dark" ? "light" : "dark"} theme
+          </CommandItem>
+          <CommandItem value="keyboard shortcuts help" onSelect={() => run(openShortcuts)}>
+            <Keyboard /> Keyboard shortcuts
+          </CommandItem>
+          <CommandItem value="dashboard payouts stipend" onSelect={() => run(() => window.open(`${SITE_URL}/dashboard`, "_blank", "noopener"))}>
+            <ArrowUpRight /> Open the dashboard
           </CommandItem>
         </CommandGroup>
       </CommandList>

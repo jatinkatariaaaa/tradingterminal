@@ -448,6 +448,8 @@ export function TradingProvider({ children, initialAccountId }: TradingProviderP
 
   // Reset the order draft around the new asset's price whenever it changes.
   const setActiveSymbol = useCallback((symbol: string) => {
+    // Re-selecting the current symbol keeps the ticket as it is (stop and target included).
+    if (symbol === activeSymbolRef.current) return
     setActiveSymbolState(symbol)
     const asset = getAsset(symbol)
     setDraftState((prev) => {

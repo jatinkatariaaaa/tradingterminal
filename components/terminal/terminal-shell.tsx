@@ -4,57 +4,10 @@ import { ExternalLink, LayoutDashboard, LogOut, RotateCw, Sparkles } from "lucid
 import { useIsMobileState } from "@/hooks/use-mobile"
 import { signOut } from "@/app/(auth)/actions"
 import { useTradingActions, useTradingState } from "./trading-provider"
-import { TopBar } from "./shell/top-bar"
 import { CommandPalette } from "./shell/command-palette"
-import { useHotkeys } from "./shell/use-hotkeys"
-import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable"
-import { MarketWatch } from "./market-watch"
-import { ChartPanel } from "./chart-panel"
-import { OrderTicket } from "./order-ticket"
-import { ManagePanel } from "./manage-panel"
-import { PositionsPanel } from "./positions-panel"
 import { MobileShell } from "./mobile/mobile-shell"
+import { DesktopShell } from "./desktop/desktop-shell"
 import { SITE_URL, TppMark, TppTile } from "./brand"
-
-/** Right-panel slot: the position manager takes over when one is being managed. */
-function RightPanel() {
-  const { managePositionId } = useTradingState()
-  return managePositionId ? <ManagePanel /> : <OrderTicket />
-}
-
-const handle = "w-px bg-border data-[resize-handle-state=hover]:bg-ring data-[resize-handle-state=drag]:bg-ring"
-
-function DesktopLayout() {
-  useHotkeys()
-  return (
-    <div className="flex h-screen flex-col overflow-hidden bg-background text-foreground">
-      <TopBar />
-      <main className="min-h-0 flex-1">
-        <ResizablePanelGroup direction="horizontal" autoSaveId="tpp-layout-h">
-          <ResizablePanel id="watch" order={1} defaultSize={19} minSize={15} collapsible collapsedSize={0} className="bg-card">
-            <MarketWatch />
-          </ResizablePanel>
-          <ResizableHandle className={handle} />
-          <ResizablePanel id="center" order={2} defaultSize={59} minSize={32}>
-            <ResizablePanelGroup direction="vertical" autoSaveId="tpp-layout-v">
-              <ResizablePanel id="chart" order={1} defaultSize={64} minSize={30}>
-                <ChartPanel />
-              </ResizablePanel>
-              <ResizableHandle className="h-px bg-border data-[resize-handle-state=hover]:bg-ring data-[resize-handle-state=drag]:bg-ring" />
-              <ResizablePanel id="dock" order={2} defaultSize={36} minSize={12} collapsible collapsedSize={0} className="bg-card">
-                <PositionsPanel />
-              </ResizablePanel>
-            </ResizablePanelGroup>
-          </ResizablePanel>
-          <ResizableHandle className={handle} />
-          <ResizablePanel id="ticket" order={3} defaultSize={22} minSize={17} collapsible collapsedSize={0} className="bg-card">
-            <RightPanel />
-          </ResizablePanel>
-        </ResizablePanelGroup>
-      </main>
-    </div>
-  )
-}
 
 /** Signed in, but no trading account yet: point the trader to the dashboard. */
 function NoAccount({ error, onRetry }: { error: string | null; onRetry: () => void }) {
@@ -125,7 +78,7 @@ export function TerminalShell() {
   if (accounts.length === 0) return <NoAccount error={accountsError} onRetry={() => void refreshAccounts()} />
   return (
     <>
-      {isMobile ? <MobileShell /> : <DesktopLayout />}
+      {isMobile ? <MobileShell /> : <DesktopShell />}
       {!isMobile && <CommandPalette />}
     </>
   )

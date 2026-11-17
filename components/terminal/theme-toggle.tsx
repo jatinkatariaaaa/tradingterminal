@@ -13,7 +13,7 @@ export function ThemeToggle() {
 
   if (!mounted) {
     return (
-      <button type="button" aria-label="Theme" className="flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground">
+      <button type="button" aria-label="Theme" className="flex h-9 w-9 items-center justify-center rounded-full text-muted-foreground">
         <Sun className="h-4 w-4" />
       </button>
     )
@@ -27,7 +27,7 @@ export function ThemeToggle() {
       aria-label={isDark ? "Switch to light theme" : "Switch to dark theme"}
       onClick={() => setTheme(isDark ? "light" : "dark")}
       className={cn(
-        "flex h-8 w-8 items-center justify-center rounded-full transition-colors",
+        "flex h-9 w-9 items-center justify-center rounded-full transition-colors",
         "text-muted-foreground hover:bg-secondary hover:text-foreground",
       )}
       title={isDark ? "Switch to Light Mode" : "Switch to Dark Mode"}

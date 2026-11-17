@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useState } from "react"
-import { Minus, Plus } from "lucide-react"
+import { AlertTriangle, Lock, Minus, Plus } from "lucide-react"
 import { cn } from "@/lib/utils"
 import {
   bidAsk,
@@ -20,8 +20,8 @@ import type { OrderType } from "@/lib/trading/types"
 import { useTrading } from "./trading-provider"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { LocalNumberInput, PriceField, ExecutionBanners } from "./ticket/fields"
+import { LocalNumberInput, ExecutionBanners } from "./ticket/fields"
+import { BigPrice } from "./kit"
 import { useExecution } from "./ticket/use-execution"
 import { SlTpBlock, RiskRewardLine } from "./ticket/sl-tp-section"
 import { VolumeSection } from "./ticket/volume-section"
@@ -33,53 +33,64 @@ const ORDER_TYPES: { value: OrderType; label: string }[] = [
   { value: "stop", label: "Stop" },
 ]
 
+const LOCKED: Record<string, { title: string; text: string }> = {
+  breached: { title: "This account is breached", text: "A loss limit was reached, so the account is closed for trading. Its history stays here to review." },
+  passed: { title: "Phase passed", text: "Trading is closed on this phase. Your next account is issued in the dashboard." },
+  suspended: { title: "Trading is paused", text: "The People Prop has paused this account. Contact support from the dashboard for details." },
+  none: { title: "No account selected", text: "Pick an account from the switcher in the top bar." },
+}
+
+function Line({ k, v, tone }: { k: string; v: string; tone?: string }) {
+  return (
+    <div className="flex items-center justify-between gap-3">
+      <dt className="text-muted-foreground">{k}</dt>
+      <dd className={cn("font-mono font-medium tabular-nums", tone)}>{v}</dd>
+    </div>
+  )
+}
+
+/** Desktop order ticket: direction, order type, size, protection, a cost summary and the confirm button. */
 export function OrderTicket() {
   const { activeSymbol, marketPrice, prices, derived, draft, setDraft, account } = useTrading()
   const asset = getAsset(activeSymbol)
-  const breached = !account.tradable
+  const locked = !account.tradable
+  const lockInfo = LOCKED[account.status] ?? LOCKED.none
 
   const priceStep = 1 / 10 ** Math.min(asset.digits, 4)
-
-  // --- Live spread / bid-ask / institutional cost preview. ---
   const spread = spreadOf(asset, marketPrice)
   const { bid, ask } = bidAsk(marketPrice, spread)
   const volume = roundToLotStep(Math.max(asset.lotStep, draft.volume), asset.lotStep)
-  // Market orders fill at the spread-adjusted side; pending fill at their trigger.
-  const entryFill =
-    draft.type === "market" ? openFillPrice(draft.direction, marketPrice, spread) : draft.triggerPrice
+  // Market orders fill at the spread-adjusted side; pending orders at their trigger.
+  const entryFill = draft.type === "market" ? openFillPrice(draft.direction, marketPrice, spread) : draft.triggerPrice
   const sign = draft.direction === "buy" ? 1 : -1
   const usdRate = usdPerUnit(quoteCurrencyOf(asset.symbol), prices)
   const commission = commissionFor(volume)
-  // SL/TP previews: gross move → USD → net of round-turn commission.
-  const pnlAt = (price: number) =>
-    (price - entryFill) * sign * volume * asset.contractSize * usdRate - commission
-  /** USD P&L per 1.0 of price movement at the current volume (for pips/USD SL-TP modes). */
+  const pnlAt = (price: number) => (price - entryFill) * sign * volume * asset.contractSize * usdRate - commission
+  /** USD P&L per 1.0 of price movement at the current volume (for pips and dollar SL/TP entry). */
   const usdPerPriceUnit = volume * asset.contractSize * usdRate
+  const pipValue = pipsToPrice(asset.symbol, 1) * asset.contractSize * usdRate * volume
 
   const notional = volume * asset.contractSize * marketPrice * usdRate
   const marginReq = marginRequired(asset, volume, entryFill, prices, account.leverage)
-  // Pre-trade guard to ensure sufficient margin for all order types.
   const insufficientMargin = marginReq > derived.freeMargin
   const tpPreview = draft.tpEnabled ? pnlAt(draft.tpPrice) : null
   const slPreview = draft.slEnabled ? pnlAt(draft.slPrice) : null
+  const dailyLeft = Math.max(0, derived.dailyDrawdownLimit - derived.dailyDrawdownUsed)
+  const slBreaches = slPreview != null && -slPreview > dailyLeft
 
-  // --- Execution feedback via the shared hook. ---
   const { execute, busy, confirm, rejection } = useExecution()
 
-  // --- Risk-% sizing. ---
   const [autoRisk, setAutoRisk] = useState(false)
   const [riskPct, setRiskPct] = useState(1.0)
 
   /**
-   * Default SL/TP distance from entry: 20 pips, but at least 0.1% of price so
-   * high-priced assets (BTC, indices) still get a visible, sensible offset.
-   * Recomputed from the live entry every time the checkbox is toggled on, so
-   * the line always appears right next to the current price on the chart.
+   * Default SL/TP distance: 20 pips, but at least 0.1% of price so high-priced
+   * symbols still get a sensible offset. Recomputed from the live entry each time
+   * a level is switched on, so its line appears right by the price on the chart.
    */
   const defaultSlTpPrice = useCallback(
     (kind: "sl" | "tp") => {
       const dist = Math.max(pipsToPrice(asset.symbol, 20), entryFill * 0.001)
-      // SL sits on the losing side of entry, TP on the winning side.
       const dirSign = kind === "sl" ? -sign : sign
       return roundToDigits(asset.symbol, entryFill + dirSign * dist)
     },
@@ -94,180 +105,181 @@ export function OrderTicket() {
     if (distance <= 0) return
     const lossPerLot = distance * asset.contractSize * usdRate
     if (lossPerLot <= 0) return
-    let calculatedLots = riskUsd / lossPerLot
-    calculatedLots = Math.max(asset.lotStep, roundToLotStep(calculatedLots, asset.lotStep))
-    if (draft.volume !== calculatedLots) {
-      setDraft({ volume: calculatedLots })
-    }
+    const lots = Math.max(asset.lotStep, roundToLotStep(riskUsd / lossPerLot, asset.lotStep))
+    if (draft.volume !== lots) setDraft({ volume: lots })
   }, [autoRisk, riskPct, draft.slEnabled, draft.slPrice, draft.type, draft.direction, draft.triggerPrice, ask, bid, account.balance, asset.contractSize, asset.lotStep, usdRate, draft.volume, setDraft])
 
+  const verb = draft.direction === "buy" ? "Buy" : "Sell"
+  const cta = locked
+    ? lockInfo.title
+    : insufficientMargin
+      ? "Not enough free margin"
+      : busy
+        ? "Sending…"
+        : draft.type === "market"
+          ? `${verb} ${volume} ${asset.symbol} at market`
+          : `Place ${verb.toLowerCase()} ${draft.type} · ${volume} lots`
+
   return (
-    <aside className="flex min-h-0 flex-col overflow-y-auto bg-card" aria-label="Order ticket">
-      <div className="border-b border-border px-3 py-2.5">
-        <h2 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-          Order Ticket
-        </h2>
+    <aside className="flex h-full min-h-0 flex-col bg-card" aria-label="Order ticket">
+      <div className="flex items-center justify-between gap-2 px-3 pt-2.5 pb-1.5">
+        <h2 className="text-[11px] font-semibold tracking-[0.1em] text-muted-foreground uppercase">New order</h2>
+        <span className="flex items-center gap-1.5 text-[11.5px]">
+          <span className="font-semibold">{asset.symbol}</span>
+          <span className="rounded-md bg-secondary px-1.5 py-px font-mono text-[10.5px] text-muted-foreground tabular-nums">{Math.round(spread * 10 ** asset.digits)} pts</span>
+        </span>
       </div>
 
-      <div className="flex flex-col gap-3.5 p-3">
-        {/* Direction toggle — cTrader style: outlined resting, filled active */}
-        <div className="grid grid-cols-2 gap-2">
-          <button
-            type="button"
-            onClick={() => setDraft({ direction: "sell" })}
-            className={cn(
-              "rounded-lg border py-2.5 text-sm font-semibold transition-colors",
-              draft.direction === "sell"
-                ? "border-[var(--sell)] bg-[var(--sell)] text-[var(--sell-foreground)]"
-                : "border-[var(--sell)]/40 bg-transparent text-[var(--sell)] hover:bg-[var(--sell)]/10",
-            )}
-          >
-            <span className="block text-[10px] font-medium uppercase tracking-wider opacity-80">Sell</span>
-            <span className="font-mono tabular-nums">{formatPrice(bid, asset.digits)}</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setDraft({ direction: "buy" })}
-            className={cn(
-              "rounded-lg border py-2.5 text-sm font-semibold transition-colors",
-              draft.direction === "buy"
-                ? "border-[var(--buy)] bg-[var(--buy)] text-[var(--buy-foreground)]"
-                : "border-[var(--buy)]/40 bg-transparent text-[var(--buy)] hover:bg-[var(--buy)]/10",
-            )}
-          >
-            <span className="block text-[10px] font-medium uppercase tracking-wider opacity-80">Buy</span>
-            <span className="font-mono tabular-nums">{formatPrice(ask, asset.digits)}</span>
-          </button>
-        </div>
+      <div className="min-h-0 flex-1 overflow-y-auto px-3 pb-3 scrollbar-thin">
+        <div className="grid gap-3">
+          {locked ? (
+            <div className="flex items-start gap-2.5 rounded-xl border border-warning/30 bg-warning/10 p-3 text-[12px]">
+              <Lock className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
+              <div>
+                <p className="font-semibold">{lockInfo.title}</p>
+                <p className="mt-0.5 leading-relaxed text-muted-foreground">{lockInfo.text}</p>
+              </div>
+            </div>
+          ) : null}
 
-        {/* Order type tabs */}
-        <div className="grid grid-cols-3 gap-1 rounded-lg bg-secondary p-1">
-          {ORDER_TYPES.map((t) => (
-            <button
-              key={t.value}
-              type="button"
-              onClick={() => setDraft({ type: t.value })}
-              className={cn(
-                "rounded-md py-1.5 text-xs font-medium transition-colors",
-                draft.type === t.value
-                  ? "bg-background text-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground",
-              )}
-            >
-              {t.label}
-            </button>
-          ))}
-        </div>
+          <div className="grid grid-cols-2 gap-1.5">
+            {(["sell", "buy"] as const).map((d) => {
+              const on = draft.direction === d
+              const isBuy = d === "buy"
+              return (
+                <button
+                  key={d}
+                  type="button"
+                  onClick={() => setDraft({ direction: d })}
+                  aria-pressed={on}
+                  className={cn(
+                    "flex flex-col rounded-xl border px-3 py-2 transition-colors",
+                    isBuy ? "items-end" : "items-start",
+                    on
+                      ? isBuy
+                        ? "border-buy bg-buy text-buy-foreground"
+                        : "border-sell bg-sell text-sell-foreground"
+                      : isBuy
+                        ? "border-buy/35 text-buy hover:bg-buy/10"
+                        : "border-sell/35 text-sell hover:bg-sell/10",
+                  )}
+                >
+                  <span className="text-[10px] font-bold tracking-[0.12em] uppercase opacity-85">{d}</span>
+                  <BigPrice price={isBuy ? ask : bid} digits={asset.digits} className="text-[20px] text-current" tone={null} />
+                </button>
+              )
+            })}
+          </div>
 
-        {/* Volume with lots / risk-% sizing modes */}
-        <VolumeSection
-          volume={draft.volume}
-          lotStep={asset.lotStep}
-          onVolume={(v) => setDraft({ volume: v })}
-          autoRisk={autoRisk}
-          onAutoRisk={setAutoRisk}
-          riskPct={riskPct}
-          onRiskPct={setRiskPct}
-          slEnabled={draft.slEnabled}
-          roundedVolume={volume}
-        />
+          <div className="grid grid-cols-3 gap-0.5 rounded-xl bg-secondary p-0.5" role="tablist" aria-label="Order type">
+            {ORDER_TYPES.map((t) => (
+              <button
+                key={t.value}
+                type="button"
+                role="tab"
+                aria-selected={draft.type === t.value}
+                onClick={() => setDraft({ type: t.value })}
+                className={cn("h-8 rounded-[10px] text-[12px] font-semibold transition-colors", draft.type === t.value ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground")}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
 
-        {/* Trigger price for limit/stop */}
-        {draft.type !== "market" && (
-          <div className="rounded-lg border border-primary/30 bg-primary/5 p-2.5">
-            <PriceField
-              label={`${draft.type === "limit" ? "Limit" : "Stop"} Price`}
-              value={draft.triggerPrice}
-              step={priceStep}
-              accent="var(--primary)"
-              onChange={(v) => setDraft({ triggerPrice: v })}
-            />
-            <p className="mt-1.5 text-[11px] text-muted-foreground">
-              Drag the line on the chart to set the trigger.
+          {draft.type !== "market" ? (
+            <section className="rounded-xl border border-volt/40 bg-volt/[0.06] p-2.5">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[12px] font-semibold">{draft.type === "limit" ? "Limit price" : "Stop price"}</span>
+                <span className="font-mono text-[11px] text-muted-foreground tabular-nums">
+                  {Math.round(Math.abs(draft.triggerPrice - marketPrice) * 10 ** asset.digits).toLocaleString("en-US")} pts away
+                </span>
+              </div>
+              <div className="mt-2 flex h-9 items-center rounded-lg border border-border bg-background focus-within:border-ring focus-within:ring-2 focus-within:ring-ring/20">
+                <LocalNumberInput
+                  value={draft.triggerPrice}
+                  onChange={(v) => setDraft({ triggerPrice: v })}
+                  step={priceStep}
+                  aria-label="Trigger price"
+                  className="h-full flex-1 border-0 bg-transparent text-right font-mono text-[13px] font-semibold tabular-nums shadow-none focus-visible:ring-0 dark:bg-transparent"
+                />
+              </div>
+              <p className="mt-1.5 text-[11px] text-muted-foreground">Or drag the dashed line on the chart.</p>
+            </section>
+          ) : null}
+
+          <VolumeSection
+            volume={draft.volume}
+            lotStep={asset.lotStep}
+            onVolume={(v) => setDraft({ volume: v })}
+            autoRisk={autoRisk}
+            onAutoRisk={setAutoRisk}
+            riskPct={riskPct}
+            onRiskPct={setRiskPct}
+            slEnabled={draft.slEnabled}
+            roundedVolume={volume}
+            footnote={
+              <p className="text-[11px] text-muted-foreground">
+                {formatMoney(notional)} notional · {formatMoney(pipValue)} per pip
+              </p>
+            }
+          />
+
+          <SlTpBlock
+            kind="sl"
+            symbol={asset.symbol}
+            enabled={draft.slEnabled}
+            price={draft.slPrice}
+            onToggle={(on) => setDraft(on ? { slEnabled: true, slPrice: defaultSlTpPrice("sl") } : { slEnabled: false })}
+            onPrice={(v) => setDraft({ slPrice: v })}
+            entryFill={entryFill}
+            direction={draft.direction}
+            usdPerPriceUnit={usdPerPriceUnit}
+            priceStep={priceStep}
+            preview={slPreview}
+          />
+          <SlTpBlock
+            kind="tp"
+            symbol={asset.symbol}
+            enabled={draft.tpEnabled}
+            price={draft.tpPrice}
+            onToggle={(on) => setDraft(on ? { tpEnabled: true, tpPrice: defaultSlTpPrice("tp") } : { tpEnabled: false })}
+            onPrice={(v) => setDraft({ tpPrice: v })}
+            entryFill={entryFill}
+            direction={draft.direction}
+            usdPerPriceUnit={usdPerPriceUnit}
+            priceStep={priceStep}
+            preview={tpPreview}
+          />
+          <RiskRewardLine slPreview={slPreview} tpPreview={tpPreview} />
+
+          {slBreaches && !locked ? (
+            <p className="flex items-start gap-2 rounded-xl bg-loss/10 px-3 py-2 text-[11.5px] text-loss">
+              <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" /> If this stop is hit the loss is larger than the {formatMoney(dailyLeft)} left in today&apos;s limit, and the account would breach first.
             </p>
-          </div>
-        )}
+          ) : null}
 
-        {/* Stop Loss with price / pips / USD entry */}
-        <SlTpBlock
-          kind="sl"
-          symbol={asset.symbol}
-          enabled={draft.slEnabled}
-          price={draft.slPrice}
-          onToggle={(on) => setDraft(on ? { slEnabled: true, slPrice: defaultSlTpPrice("sl") } : { slEnabled: false })}
-          onPrice={(v) => setDraft({ slPrice: v })}
-          entryFill={entryFill}
-          direction={draft.direction}
-          usdPerPriceUnit={usdPerPriceUnit}
-          commission={commission}
-          priceStep={priceStep}
-          preview={slPreview}
-        />
+          <dl className="grid gap-1.5 rounded-xl border border-border bg-background/50 p-3 text-[11.5px]">
+            <Line k={`Margin (1:${account.leverage})`} v={formatMoney(marginReq)} />
+            <Line k="Free margin after" v={formatMoney(derived.freeMargin - marginReq)} tone={insufficientMargin ? "text-loss" : undefined} />
+            <Line k="Commission, round turn" v={formatMoney(commission)} />
+            <Line k="Daily loss room" v={formatMoney(dailyLeft)} />
+          </dl>
+        </div>
+      </div>
 
-        {/* Take Profit with price / pips / USD entry */}
-        <SlTpBlock
-          kind="tp"
-          symbol={asset.symbol}
-          enabled={draft.tpEnabled}
-          price={draft.tpPrice}
-          onToggle={(on) => setDraft(on ? { tpEnabled: true, tpPrice: defaultSlTpPrice("tp") } : { tpEnabled: false })}
-          onPrice={(v) => setDraft({ tpPrice: v })}
-          entryFill={entryFill}
-          direction={draft.direction}
-          usdPerPriceUnit={usdPerPriceUnit}
-          commission={commission}
-          priceStep={priceStep}
-          preview={tpPreview}
-        />
-
-        {/* Risk : Reward when both SL and TP set */}
-        <RiskRewardLine slPreview={slPreview} tpPreview={tpPreview} />
-
-        {/* Trade cost & margin breakdown */}
-        <dl className="flex flex-col gap-1 rounded-lg border border-border bg-secondary/30 p-2.5 text-[11px]">
-          <div className="flex items-center justify-between">
-            <dt className="text-muted-foreground">Notional</dt>
-            <dd className="font-mono tabular-nums">{formatMoney(notional)}</dd>
-          </div>
-          <div className="flex items-center justify-between">
-            <dt className="text-muted-foreground">Margin required (1:100)</dt>
-            <dd className="font-mono tabular-nums">{formatMoney(marginReq)}</dd>
-          </div>
-          <div className="flex items-center justify-between">
-            <dt className="text-muted-foreground">Commission (round-turn)</dt>
-            <dd className="font-mono tabular-nums">{formatMoney(commission)}</dd>
-          </div>
-          <div className="flex items-center justify-between border-t border-border pt-1">
-            <dt className="text-muted-foreground">Free margin</dt>
-            <dd className={cn("font-mono tabular-nums", insufficientMargin && "text-[var(--loss)]")}>
-              {formatMoney(derived.freeMargin)}
-            </dd>
-          </div>
-        </dl>
-
-        {/* Execution confirmation / rejection banners */}
+      <div className="grid gap-2 border-t border-border p-3">
         <ExecutionBanners confirm={confirm} rejection={rejection} digits={asset.digits} />
-
-        {/* Execute */}
-        <Button
+        <button
           type="button"
-          disabled={breached || busy || insufficientMargin}
+          disabled={locked || busy || insufficientMargin}
           onClick={execute}
           className={cn(
-            "h-11 rounded-lg text-sm font-semibold",
-            draft.direction === "buy"
-              ? "bg-[var(--buy)] text-[var(--buy-foreground)] hover:bg-[var(--buy)]/90"
-              : "bg-[var(--sell)] text-[var(--sell-foreground)] hover:bg-[var(--sell)]/90",
+            "h-12 rounded-xl text-[14px] font-semibold transition-[filter,opacity] hover:brightness-105 disabled:opacity-45",
+            draft.direction === "buy" ? "bg-buy text-buy-foreground" : "bg-sell text-sell-foreground",
           )}
         >
-          {breached
-            ? "Account Breached"
-            : insufficientMargin
-              ? "Insufficient Free Margin"
-              : busy
-                ? "Order Sent"
-                : `${draft.direction === "buy" ? "Buy" : "Sell"} ${volume} ${asset.symbol}`}
-        </Button>
+          {cta}
+        </button>
       </div>
     </aside>
   )

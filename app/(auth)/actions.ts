@@ -27,22 +27,6 @@ export async function signIn(
   redirect("/")
 }
 
-export async function signUp(
-  _prev: AuthActionState,
-  formData: FormData,
-): Promise<AuthActionState> {
-  const { email, password } = readCredentials(formData)
-  if (!email || !password) return { error: "Email and password are required." }
-  if (password.length < 8) return { error: "Password must be at least 8 characters." }
-
-  const supabase = await createSupabaseServerClient()
-  // On sign-up the on_auth_user_created trigger (migration 0001) inserts the
-  // matching public.profiles row automatically.
-  const { error } = await supabase.auth.signUp({ email, password })
-  if (error) return { error: error.message }
-  redirect("/")
-}
-
 export async function signOut(): Promise<void> {
   const supabase = await createSupabaseServerClient()
   await supabase.auth.signOut()

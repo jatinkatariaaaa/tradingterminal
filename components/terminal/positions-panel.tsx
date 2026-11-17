@@ -1,11 +1,10 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import { Pencil, X, ShieldX, Equal, Scissors } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { formatMoney, formatPrice, getAsset, roundToLotStep } from "@/lib/trading/assets"
 import { useTrading } from "./trading-provider"
-import { useIsMobile } from "@/hooks/use-mobile"
 import { Button } from "@/components/ui/button"
 import {
   AlertDialog,
@@ -18,9 +17,9 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
-import { MobileAccountDetails } from "./account-bar"
+import { Objectives } from "./objectives"
 
-type Tab = "open" | "pending" | "history" | "account"
+type Tab = "open" | "pending" | "history" | "objectives"
 
 function DirBadge({ direction }: { direction: "buy" | "sell" }) {
   return (
@@ -54,14 +53,7 @@ export function PositionsPanel() {
     modifyPosition,
     partialClose,
   } = useTrading()
-  const isMobile = useIsMobile()
   const [tab, setTab] = useState<Tab>("open")
-
-  useEffect(() => {
-    if (isMobile && tab === "account") {
-      setTab("open")
-    }
-  }, [isMobile, tab])
 
   const totalPnl = openPositions.reduce(
     (sum, p) => sum + pnlFor(p, prices[p.symbol] ?? p.entryPrice),
@@ -72,10 +64,8 @@ export function PositionsPanel() {
     { key: "open", label: "Positions", count: openPositions.length },
     { key: "pending", label: "Pending", count: pendingOrders.length },
     { key: "history", label: "History", count: closedTrades.length },
+    { key: "objectives", label: "Objectives" },
   ]
-  if (!isMobile) {
-    tabs.push({ key: "account", label: "Account Details" })
-  }
 
   return (
     <section className="flex h-full min-h-0 flex-col bg-card">
@@ -335,9 +325,9 @@ export function PositionsPanel() {
           />
         )}
 
-        {tab === "account" && (
-          <div className="h-full overflow-auto bg-background p-2">
-            <MobileAccountDetails />
+        {tab === "objectives" && (
+          <div className="h-full overflow-auto p-3">
+            <Objectives />
           </div>
         )}
       </div>

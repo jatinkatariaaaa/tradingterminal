@@ -1,75 +1,22 @@
-"use client"
-
 import Link from "next/link"
-import { useActionState } from "react"
-import { AlertCircle } from "lucide-react"
-import { signUp, type AuthActionState } from "../actions"
-import { AuthShell, AuthField } from "@/components/auth/auth-shell"
+import { ArrowUpRight } from "lucide-react"
+import { AuthShell } from "@/components/auth/auth-shell"
+import { SITE_URL } from "@/components/terminal/brand"
 
-const initial: AuthActionState = { error: null }
-
+/** Logins are created on the website (terms, referral codes, verification), so this page hands over to it. */
 export default function SignupPage() {
-  const [state, action, pending] = useActionState(signUp, initial)
-
   return (
     <AuthShell>
-      <div className="w-full max-w-sm">
-        <h1 className="text-2xl font-semibold tracking-tight">Create your account</h1>
-        <p className="mt-1.5 text-sm text-muted-foreground">
-          Start your evaluation challenge in minutes.
+      <div className="w-full max-w-[380px]">
+        <h1 className="text-[28px] leading-tight font-bold tracking-[-0.03em]">Create your login</h1>
+        <p className="mt-2 text-[14.5px] leading-relaxed text-muted-foreground">
+          Logins are made on The People Prop website, where you accept the terms and choose your first account. The same email and password then work here.
         </p>
-
-        <form action={action} className="mt-8 flex flex-col gap-4">
-          <AuthField
-            label="Email"
-            name="email"
-            type="email"
-            autoComplete="email"
-            placeholder="you@example.com"
-            required
-          />
-          <AuthField
-            label="Password"
-            name="password"
-            type="password"
-            autoComplete="new-password"
-            placeholder="At least 8 characters"
-            minLength={8}
-            required
-          />
-
-          {state.error && (
-            <div
-              role="alert"
-              className="flex items-start gap-2 rounded-lg border border-[var(--loss)]/30 bg-[var(--loss)]/10 px-3 py-2.5 text-xs font-medium text-[var(--loss)]"
-            >
-              <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-              <span>{state.error}</span>
-            </div>
-          )}
-
-          <button
-            type="submit"
-            disabled={pending}
-            className="mt-1 h-11 rounded-lg bg-primary text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-60"
-          >
-            {pending ? "Creating account\u2026" : "Create account"}
-          </button>
-        </form>
-
-        <div className="mt-6 flex items-center gap-3">
-          <span className="h-px flex-1 bg-border" />
-          <span className="text-[11px] uppercase tracking-wider text-muted-foreground">
-            Already registered?
-          </span>
-          <span className="h-px flex-1 bg-border" />
-        </div>
-
-        <Link
-          href="/login"
-          className="mt-4 flex h-11 items-center justify-center rounded-lg border border-border text-sm font-medium transition-colors hover:bg-secondary"
-        >
-          Sign in instead
+        <a href={`${SITE_URL}/login?mode=signup`} className="mt-8 flex h-12 items-center justify-center gap-1.5 rounded-xl bg-primary text-[15px] font-semibold text-primary-foreground transition-opacity hover:opacity-90">
+          Continue to {new URL(SITE_URL).host} <ArrowUpRight className="h-4 w-4" />
+        </a>
+        <Link href="/login" className="mt-3 flex h-12 items-center justify-center rounded-xl border border-border text-[14.5px] font-semibold transition-colors hover:bg-secondary">
+          I already have a login
         </Link>
       </div>
     </AuthShell>

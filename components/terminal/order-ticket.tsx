@@ -36,7 +36,7 @@ const ORDER_TYPES: { value: OrderType; label: string }[] = [
 export function OrderTicket() {
   const { activeSymbol, marketPrice, prices, derived, draft, setDraft, account } = useTrading()
   const asset = getAsset(activeSymbol)
-  const breached = account.status === "breached"
+  const breached = !account.tradable
 
   const priceStep = 1 / 10 ** Math.min(asset.digits, 4)
 
@@ -57,7 +57,7 @@ export function OrderTicket() {
   const usdPerPriceUnit = volume * asset.contractSize * usdRate
 
   const notional = volume * asset.contractSize * marketPrice * usdRate
-  const marginReq = marginRequired(asset, volume, entryFill, prices)
+  const marginReq = marginRequired(asset, volume, entryFill, prices, account.leverage)
   // Pre-trade guard to ensure sufficient margin for all order types.
   const insufficientMargin = marginReq > derived.freeMargin
   const tpPreview = draft.tpEnabled ? pnlAt(draft.tpPrice) : null
@@ -304,7 +304,7 @@ export function MobileOrderPanel({ onOpenFullManage }: { onOpenFullManage?: () =
     modifyOrder,
   } = useTrading()
   const asset = getAsset(activeSymbol)
-  const breached = account.status === "breached"
+  const breached = !account.tradable
 
   const priceStep = 1 / 10 ** Math.min(asset.digits, 4)
   const spread = spreadOf(asset, marketPrice)
@@ -318,7 +318,7 @@ export function MobileOrderPanel({ onOpenFullManage }: { onOpenFullManage?: () =
   const pnlAt = (price: number) =>
     (price - entryFill) * sign * volume * asset.contractSize * usdRate - commission
 
-  const marginReq = marginRequired(asset, volume, entryFill, prices)
+  const marginReq = marginRequired(asset, volume, entryFill, prices, account.leverage)
   const insufficientMargin = draft.type === "market" && marginReq > derived.freeMargin
   const tpPreview = draft.tpEnabled ? pnlAt(draft.tpPrice) : null
   const slPreview = draft.slEnabled ? pnlAt(draft.slPrice) : null

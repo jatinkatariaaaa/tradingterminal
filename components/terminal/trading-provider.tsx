@@ -46,8 +46,16 @@ const FALLBACK_ACCOUNT: AccountState = {
   startingBalance: STARTING_BALANCE,
   balance: STARTING_BALANCE,
   dailyStartBalance: STARTING_BALANCE,
-  status: "active",
+  status: "none",
   breachReason: null,
+  tradable: false,
+  leverage: 100,
+  phase: "challenge",
+  label: "No account",
+  profitTarget: 0,
+  maxDailyDrawdown: DAILY_DRAWDOWN_PCT,
+  maxOverallDrawdown: MAX_DRAWDOWN_PCT,
+  minTradingDays: 0,
 }
 
 // Shared, draggable order draft. Both the Order Ticket and the chart overlay
@@ -407,6 +415,8 @@ export function TradingProvider({ children, initialAccountId }: TradingProviderP
   activeSymbolRef.current = activeSymbol
   const accountIdRef = useRef(accountId)
   accountIdRef.current = accountId
+  const accountRef = useRef(account)
+  accountRef.current = account
   const openPositionsRef = useRef(openPositions)
   openPositionsRef.current = openPositions
   const pendingOrdersRef = useRef(pendingOrders)
@@ -617,7 +627,7 @@ export function TradingProvider({ children, initialAccountId }: TradingProviderP
         
         // Construct the fill result from the API response.
         const entryFill = openFillPrice(draft.direction, mid, spread)
-        const margin = marginRequired(asset, volume, entryFill, prices)
+        const margin = marginRequired(asset, volume, entryFill, prices, accountRef.current.leverage)
         setDraftState((prev) => ({ ...prev, slEnabled: false, tpEnabled: false }))
         setIsSubmitting(false)
         return {
@@ -670,7 +680,7 @@ export function TradingProvider({ children, initialAccountId }: TradingProviderP
         symbol,
         volume,
         price: draft.triggerPrice,
-        margin: marginRequired(asset, volume, pendingFill, prices),
+        margin: marginRequired(asset, volume, pendingFill, prices, accountRef.current.leverage),
         commission,
       }
     } catch (err) {

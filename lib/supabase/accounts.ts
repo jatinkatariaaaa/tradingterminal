@@ -3,7 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 
 // Selected columns mapped from snake_case (DB) to the camelCase ServerAccount.
 const ACCOUNT_COLUMNS =
-  "id, user_id, label, phase, status, starting_balance, balance, equity, daily_start_balance, highest_equity, max_daily_drawdown, max_overall_drawdown, profit_target, breach_reason, created_at, updated_at"
+  "id, user_id, label, phase, status, starting_balance, balance, equity, daily_start_balance, highest_equity, max_daily_drawdown, max_overall_drawdown, profit_target, breach_reason, leverage, min_trading_days, program_key, created_at, updated_at"
 
 interface AccountRow {
   id: string
@@ -20,6 +20,9 @@ interface AccountRow {
   max_overall_drawdown: number
   profit_target: number
   breach_reason: string | null
+  leverage: number | null
+  min_trading_days: number | null
+  program_key: string | null
   created_at: string
   updated_at: string
 }
@@ -40,6 +43,9 @@ function mapAccount(row: AccountRow): ServerAccount {
     maxOverallDrawdown: Number(row.max_overall_drawdown),
     profitTarget: Number(row.profit_target),
     breachReason: row.breach_reason,
+    leverage: Number(row.leverage) || 100,
+    minTradingDays: Number(row.min_trading_days) || 0,
+    programKey: row.program_key,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   }

@@ -259,7 +259,7 @@ export function usdPerUnit(currency: string, prices: Record<string, number>): nu
 // Institutional execution mechanics: spread, commission, leverage and margin.
 // ----------------------------------------------------------------------------
 
-/** Account leverage applied to every instrument (1:100). */
+/** Default account leverage (1:100). Each account can carry its own (accounts.leverage). */
 export const LEVERAGE = 100
 
 /** Commission charged per lot, per side (USD). A round-turn costs 2x this. */
@@ -324,8 +324,9 @@ export function marginRequired(
   volume: number,
   fillPrice: number,
   prices: Record<string, number>,
+  leverage: number = LEVERAGE,
 ): number {
   const notionalUsd =
     volume * asset.contractSize * fillPrice * usdPerUnit(quoteCurrencyOf(asset.symbol), prices)
-  return notionalUsd / LEVERAGE
+  return notionalUsd / Math.max(1, leverage || LEVERAGE)
 }

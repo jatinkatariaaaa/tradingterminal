@@ -112,7 +112,15 @@ export function toAccountState(sa: ServerAccount): AccountState {
     startingBalance: sa.startingBalance,
     balance: sa.balance,
     dailyStartBalance: sa.dailyStartBalance,
-    status: sa.status === "breached" ? "breached" : "active",
+    status: sa.status,
     breachReason: sa.breachReason,
+    tradable: sa.status === "active" || sa.status === "funded",
+    leverage: sa.leverage,
+    phase: sa.phase,
+    label: sa.label,
+    profitTarget: sa.profitTarget,
+    maxDailyDrawdown: sa.maxDailyDrawdown,
+    maxOverallDrawdown: sa.maxOverallDrawdown,
+    minTradingDays: sa.minTradingDays,
   }
 }

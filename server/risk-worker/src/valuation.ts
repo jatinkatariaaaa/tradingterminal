@@ -89,10 +89,11 @@ export function marginRequired(
   volume: number,
   fillPrice: number,
   prices: Record<string, number>,
+  leverage: number = LEVERAGE,
 ): number {
   const notionalUsd =
     volume * asset.contractSize * fillPrice * usdPerUnit(quoteCurrencyOf(asset.symbol), prices)
-  return notionalUsd / LEVERAGE
+  return notionalUsd / Math.max(1, leverage || LEVERAGE)
 }
 
 export interface MarkResult {

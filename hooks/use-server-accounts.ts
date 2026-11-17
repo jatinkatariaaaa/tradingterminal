@@ -35,7 +35,6 @@ export function useServerAccounts(): UseServerAccounts {
     try {
       const supabase = createSupabaseBrowserClient()
       const { data: { user } } = await supabase.auth.getUser()
-      console.log("[useServerAccounts] supabase.auth.getUser() result:", user ? `User ${user.id} logged in` : "No user logged in")
       if (!user) {
         setSignedOut(true)
         setAccounts([])
@@ -43,20 +42,8 @@ export function useServerAccounts(): UseServerAccounts {
       }
       setSignedOut(false)
       
-      let list = await fetchMyAccounts(supabase)
-      console.log("[useServerAccounts] fetchMyAccounts returned:", list.length, "accounts")
-      if (list.length === 0) {
-        console.log("[useServerAccounts] No accounts found. Auto-creating default $100k account...")
-        const res = await fetch("/api/trade/create-account", { method: "POST" })
-        console.log("[useServerAccounts] Auto-create response status:", res.status)
-        if (res.ok) {
-          list = await fetchMyAccounts(supabase)
-          console.log("[useServerAccounts] fetchMyAccounts after auto-create returned:", list.length, "accounts")
-        } else {
-          const errData = await res.json()
-          console.error("[useServerAccounts] Auto-creation failed:", errData.error)
-        }
-      }
+      // Accounts are issued by The People Prop after a purchase; the terminal never creates one.
+      const list = await fetchMyAccounts(supabase)
       setAccounts(list)
     } catch (e: any) {
       console.error("[useServerAccounts] Error in load callback:", e?.message || e?.details || e)

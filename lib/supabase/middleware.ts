@@ -19,6 +19,9 @@ function isPublicPath(pathname: string): boolean {
 export async function updateSession(request: NextRequest) {
   let response = NextResponse.next({ request })
 
+  // Unlisted educational replays render the same page for visitors and signed-in traders.
+  if (request.nextUrl.pathname.startsWith("/replay/")) return response
+
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
   // If Supabase isn't configured yet, skip auth entirely — the app still runs

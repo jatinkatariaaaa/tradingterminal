@@ -22,7 +22,7 @@ export default async function SharedReplayPage({ params }: { params: Promise<{ i
     ["Entry", formatPrice(replay.entry, asset.digits)],
     ["Stop-loss", formatPrice(replay.stopLoss, asset.digits)],
     ["Target", formatPrice(replay.target, asset.digits)],
-    ["Size", replay.lots + " lots"],
+    ["Size (lots)", String(replay.lots)],
     ["Hypothetical P&L", replayPnl(replay)],
   ]
   return (

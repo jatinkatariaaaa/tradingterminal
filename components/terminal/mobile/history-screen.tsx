@@ -7,6 +7,7 @@ import { formatPrice, getAsset } from "@/lib/trading/assets"
 import type { ClosedTrade } from "@/lib/trading/types"
 import { useTradingState } from "../trading-provider"
 import { DirChip, money, pnlTone } from "../kit"
+import { TradeReplayLink } from "../replay/replay-link"
 import { Chips, duration, Empty, ScreenHeader, stamp } from "./ui"
 
 type Period = "today" | "week" | "month" | "quarter" | "all"
@@ -86,7 +87,7 @@ function Deal({ t, open, onToggle }: { t: ClosedTrade; open: boolean; onToggle: 
 }
 
 export function HistoryScreen() {
-  const { closedTrades, account } = useTradingState()
+  const { closedTrades, account, accountId, activeSymbol } = useTradingState()
   const [period, setPeriod] = useState<Period>("all")
   const [openId, setOpenId] = useState<string | null>(null)
 
@@ -116,6 +117,7 @@ export function HistoryScreen() {
     <div className="flex h-full min-h-0 flex-col">
       <ScreenHeader title="History">
         <Chips value={period} onChange={setPeriod} options={PERIODS} className="mb-2" />
+        <TradeReplayLink accountId={accountId} symbol={activeSymbol} className="mb-2" />
       </ScreenHeader>
 
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain pb-6">

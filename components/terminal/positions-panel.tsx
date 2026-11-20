@@ -18,6 +18,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
 import { Objectives } from "./objectives"
+import { TradeReplayLink } from "./replay/replay-link"
 import { DirChip, money, pnlTone } from "./kit"
 import { duration, stamp } from "./mobile/ui"
 
@@ -94,6 +95,8 @@ export function PositionsPanel() {
     modifyPosition,
     partialClose,
     account,
+    accountId,
+    activeSymbol,
   } = useTrading()
   const [tab, setTab] = useState<Tab>("open")
   const [period, setPeriod] = useState<Period>("all")
@@ -163,6 +166,7 @@ export function PositionsPanel() {
           ) : null}
           {tab === "history" ? (
             <>
+              <TradeReplayLink accountId={accountId} symbol={activeSymbol} />
               <span className="hidden items-center gap-3 text-[11.5px] text-muted-foreground lg:flex">
                 <span>
                   {deals.length} trades · {deals.length ? Math.round((wins / deals.length) * 100) : 0}% won

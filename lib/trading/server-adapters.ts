@@ -90,8 +90,8 @@ export function toClosedTrade(st: ServerTrade): ClosedTrade {
     entryPrice: st.openPrice,
     contractSize,
     digits,
-    stopLoss: st.stopLoss ?? null,
-    takeProfit: st.takeProfit ?? null,
+    stopLoss: null, // not stored on the trade row
+    takeProfit: null,
     openedAt: new Date(st.openTime).getTime(),
     margin,
     exitPrice: st.closePrice,

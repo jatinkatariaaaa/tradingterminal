@@ -1,11 +1,13 @@
 "use client"
 
-import { useMemo, useState, type ReactNode } from "react"
-import { Equal, History as HistoryIcon, Inbox, Layers, Pencil, Scissors, ShieldX, X } from "lucide-react"
+import { useMemo, useState, useEffect, type ReactNode } from "react"
+import { Equal, History as HistoryIcon, Inbox, Layers, Pencil, Scissors, ShieldX, X, Sparkles } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { formatMoney, formatPrice, getAsset, roundToLotStep } from "@/lib/trading/assets"
 import type { ClosedTrade } from "@/lib/trading/types"
 import { useTrading } from "./trading-provider"
+import { createSupabaseBrowserClient } from "@/lib/supabase/client"
+import { CreateTradeRecordModal } from "./create-trade-record-modal"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -94,9 +96,27 @@ export function PositionsPanel() {
     modifyPosition,
     partialClose,
     account,
+    accountId,
   } = useTrading()
   const [tab, setTab] = useState<Tab>("open")
   const [period, setPeriod] = useState<Period>("all")
+  const [isAdmin, setIsAdmin] = useState(false)
+  const [showRecordModal, setShowRecordModal] = useState(false)
+
+  useEffect(() => {
+    try {
+      const supabase = createSupabaseBrowserClient()
+      supabase.auth.getUser().then(({ data: { user } }) => {
+        if (!user) return
+        Promise.all([
+          supabase.from("profiles").select("is_admin").eq("id", user.id).maybeSingle(),
+          supabase.from("admin_roles").select("role").eq("user_id", user.id).maybeSingle(),
+        ]).then(([{ data: p }, { data: r }]) => {
+          if (p?.is_admin || r?.role) setIsAdmin(true)
+        }).catch(() => {})
+      }).catch(() => {})
+    } catch {}
+  }, [])
 
   const totalPnl = openPositions.reduce((sum, p) => sum + pnlFor(p, prices[p.symbol] ?? p.entryPrice), 0)
 
@@ -181,6 +201,17 @@ export function PositionsPanel() {
                   </button>
                 ))}
               </div>
+              {isAdmin && accountId && (
+                <button
+                  type="button"
+                  onClick={() => setShowRecordModal(true)}
+                  className="flex h-6 items-center gap-1.5 rounded-md bg-volt px-2.5 text-[11px] font-bold text-volt-foreground shadow-sm transition-all hover:opacity-90 active:scale-95 cursor-pointer ml-1"
+                  title="Create historical demo trade"
+                >
+                  <Sparkles className="h-3 w-3" />
+                  <span>Create Trades Records</span>
+                </button>
+              )}
             </>
           ) : null}
         </div>
@@ -374,6 +405,8 @@ export function PositionsPanel() {
                   <Th>Closed</Th>
                   <Th right>Open price</Th>
                   <Th right>Close price</Th>
+                  <Th right className={MID}>S/L</Th>
+                  <Th right className={MID}>T/P</Th>
                   <Th right className={MID}>
                     Held
                   </Th>
@@ -397,6 +430,12 @@ export function PositionsPanel() {
                       <Td className="text-muted-foreground">{stamp(t.closedAt)}</Td>
                       <Td right>{formatPrice(t.entryPrice, asset.digits)}</Td>
                       <Td right>{formatPrice(t.exitPrice, asset.digits)}</Td>
+                      <Td right className={cn("text-[11px]", MID, t.stopLoss != null ? "text-loss" : "text-muted-foreground")}>
+                        {t.stopLoss != null ? formatPrice(t.stopLoss, asset.digits) : "—"}
+                      </Td>
+                      <Td right className={cn("text-[11px]", MID, t.takeProfit != null ? "text-profit" : "text-muted-foreground")}>
+                        {t.takeProfit != null ? formatPrice(t.takeProfit, asset.digits) : "—"}
+                      </Td>
                       <Td right className={cn("text-muted-foreground", MID)}>
                         {duration(t.closedAt - t.openedAt)}
                       </Td>
@@ -420,6 +459,14 @@ export function PositionsPanel() {
           </div>
         ) : null}
       </div>
+
+      {showRecordModal && accountId && (
+        <CreateTradeRecordModal
+          open={showRecordModal}
+          onClose={() => setShowRecordModal(false)}
+          accountId={accountId}
+        />
+      )}
     </section>
   )
 }

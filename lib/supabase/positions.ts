@@ -78,6 +78,7 @@ interface TradeRow {
   volume: number; open_price: number; close_price: number; open_time: string
   close_time: string; gross_pnl: number; commission: number; swap: number
   net_pnl: number; reason: "tp" | "sl" | "manual" | "breach"
+  stop_loss?: number | null; take_profit?: number | null
 }
 
 function mapTrade(r: TradeRow): ServerTrade {
@@ -87,6 +88,8 @@ function mapTrade(r: TradeRow): ServerTrade {
     openTime: r.open_time, closeTime: r.close_time, grossPnl: Number(r.gross_pnl),
     commission: Number(r.commission), swap: Number(r.swap), netPnl: Number(r.net_pnl),
     reason: r.reason,
+    stopLoss: r.stop_loss != null ? Number(r.stop_loss) : null,
+    takeProfit: r.take_profit != null ? Number(r.take_profit) : null,
   }
 }
 
@@ -98,7 +101,7 @@ export async function fetchTrades(
   const { data, error } = await supabase
     .from("trades")
     .select(
-      "id, account_id, symbol, direction, volume, open_price, close_price, open_time, close_time, gross_pnl, commission, swap, net_pnl, reason",
+      "id, account_id, symbol, direction, volume, open_price, close_price, open_time, close_time, gross_pnl, commission, swap, net_pnl, reason, stop_loss, take_profit",
     )
     .eq("account_id", accountId)
     .order("close_time", { ascending: false })

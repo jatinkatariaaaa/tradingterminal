@@ -61,4 +61,6 @@ export interface ServerTrade {
   swap: number
   netPnl: number
   reason: ServerCloseReason
+  stopLoss?: number | null
+  takeProfit?: number | null
 }

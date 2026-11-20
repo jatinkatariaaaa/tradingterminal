@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
-import { BadgeCheck, LayoutDashboard, LogOut, PauseCircle, Search, ShieldAlert } from "lucide-react"
+import { BadgeCheck, LayoutDashboard, LogOut, PauseCircle, Search, ShieldAlert, Sparkles } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { formatMoney } from "@/lib/trading/assets"
 import { signOut } from "@/app/(auth)/actions"
@@ -11,6 +11,8 @@ import { SITE_URL, TppTile } from "../brand"
 import { ThemeToggle } from "../theme-toggle"
 import { openPalette } from "../desktop/events"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { createSupabaseBrowserClient } from "@/lib/supabase/client"
+import { CreateTradeRecordModal } from "../create-trade-record-modal"
 
 /** One account figure; flashes briefly when the value moves. */
 function Metric({ label, value, tone = "default", flashKey }: { label: string; value: string; tone?: "default" | "profit" | "loss"; flashKey?: number }) {
@@ -91,7 +93,25 @@ function IconLink({ label, children, href, onClick }: { label: string; children:
 
 export function TopBar() {
   const { derived } = useMarket()
-  const { account } = useTradingState()
+  const { account, accountId } = useTradingState()
+  const [isAdmin, setIsAdmin] = useState(false)
+  const [showRecordModal, setShowRecordModal] = useState(false)
+
+  useEffect(() => {
+    try {
+      const supabase = createSupabaseBrowserClient()
+      supabase.auth.getUser().then(({ data: { user } }) => {
+        if (!user) return
+        Promise.all([
+          supabase.from("profiles").select("is_admin").eq("id", user.id).maybeSingle(),
+          supabase.from("admin_roles").select("role").eq("user_id", user.id).maybeSingle(),
+        ]).then(([{ data: p }, { data: r }]) => {
+          if (p?.is_admin || r?.role) setIsAdmin(true)
+        }).catch(() => {})
+      }).catch(() => {})
+    } catch {}
+  }, [])
+
   const pnl = derived.floatingPnl
   const chip = STATUS_CHIP[account.status]
 
@@ -128,6 +148,17 @@ export function TopBar() {
             {chip.label}
           </span>
         ) : null}
+        {isAdmin && accountId && (
+          <button
+            type="button"
+            onClick={() => setShowRecordModal(true)}
+            className="mr-1 flex h-9 items-center gap-1.5 rounded-full bg-volt px-3 text-[12px] font-bold text-volt-foreground shadow-sm transition-all hover:opacity-90 active:scale-95 cursor-pointer"
+            title="Create historical demo trade records"
+          >
+            <Sparkles className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Create Trades Records</span>
+          </button>
+        )}
         <button
           type="button"
           onClick={openPalette}
@@ -146,6 +177,14 @@ export function TopBar() {
           <LogOut className="h-4 w-4" />
         </IconLink>
       </div>
+
+      {showRecordModal && accountId && (
+        <CreateTradeRecordModal
+          open={showRecordModal}
+          onClose={() => setShowRecordModal(false)}
+          accountId={accountId}
+        />
+      )}
     </header>
   )
 }

@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server"
 import { requireUser } from "../_auth"
 import { createSupabaseServiceClient } from "@/lib/supabase/service"
-import { categoryOf } from "@/lib/trading/category"
 
 export async function POST(request: Request) {
   const auth = await requireUser()
@@ -14,11 +13,11 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 })
   }
   
-  if (!body.positionId || !body.symbol || !body.volume) {
-    return NextResponse.json({ error: "positionId, symbol, and volume required" }, { status: 400 })
+  if (!body?.positionId || typeof body.volume !== "number") {
+    return NextResponse.json({ error: "positionId and numeric volume required" }, { status: 400 })
   }
 
-  if (body.volume <= 0) {
+  if (!Number.isFinite(body.volume) || body.volume <= 0) {
     return NextResponse.json({ error: "Close volume must be positive" }, { status: 400 })
   }
 
@@ -27,7 +26,6 @@ export async function POST(request: Request) {
     p_user_id: auth.userId,
     p_position_id: body.positionId,
     p_close_volume: body.volume,
-    p_category: categoryOf(body.symbol),
   })
   
   if (error) return NextResponse.json({ error: error.message }, { status: 422 })

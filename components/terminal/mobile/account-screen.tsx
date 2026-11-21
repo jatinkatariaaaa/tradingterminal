@@ -68,7 +68,7 @@ const LINKS = [
 ]
 
 export function AccountScreen() {
-  const { binanceConnected } = useMarket()
+  const { quoteLive } = useMarket()
   const { account, accounts, accountId } = useTradingState()
   const [copied, setCopied] = useState(false)
   const current = accounts.find((a) => a.id === accountId)
@@ -141,9 +141,9 @@ export function AccountScreen() {
           </div>
           <div className="flex items-center justify-between gap-3 px-4 py-3.5">
             <span className="text-[14px] font-medium">Price feed</span>
-            <span className={cn("flex items-center gap-1.5 text-[13px] font-semibold", binanceConnected ? "text-profit" : "text-muted-foreground")}>
-              <span className={cn("h-2 w-2 rounded-full", binanceConnected ? "bg-profit" : "bg-muted-foreground")} />
-              {binanceConnected ? "Live" : "Connecting"}
+            <span className={cn("flex items-center gap-1.5 text-[13px] font-semibold", quoteLive ? "text-profit" : "text-muted-foreground")}>
+              <span className={cn("h-2 w-2 rounded-full", quoteLive ? "bg-profit" : "bg-muted-foreground")} />
+              {quoteLive ? "Live" : "No live quote"}
             </span>
           </div>
         </div>

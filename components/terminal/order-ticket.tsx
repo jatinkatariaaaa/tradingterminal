@@ -271,7 +271,7 @@ export function OrderTicket() {
         <ExecutionBanners confirm={confirm} rejection={rejection} digits={asset.digits} />
         <button
           type="button"
-          disabled={locked || busy || insufficientMargin}
+          disabled={!Number.isFinite(marketPrice) || locked || busy || insufficientMargin}
           onClick={execute}
           className={cn(
             "h-12 rounded-xl text-[14px] font-semibold transition-[filter,opacity] hover:brightness-105 disabled:opacity-45",
@@ -720,7 +720,7 @@ export function MobileOrderPanel({ onOpenFullManage }: { onOpenFullManage?: () =
       <div className="px-2 pb-2">
         <Button
           type="button"
-          disabled={breached || busy || insufficientMargin}
+          disabled={!Number.isFinite(marketPrice) || breached || busy || insufficientMargin}
           onClick={handleExecute}
           className={cn(
             "h-9 w-full text-xs font-bold",

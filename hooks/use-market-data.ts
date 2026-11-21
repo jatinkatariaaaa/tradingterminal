@@ -1,198 +1,89 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
-import { ASSETS } from "@/lib/trading/assets"
+import { useEffect, useState } from "react"
+import { ASSET_MAP } from "@/lib/trading/assets"
+import { isMarketOpenAt } from "@/lib/trading/market-hours"
+import { freshQuote } from "@/lib/trading/quote-health"
 
-/**
- * Combined real-time market data feed. Three sources are merged into a single
- * price map:
- *
- *  1. CRYPTO — the public, unauthenticated Binance combined stream:
- *       wss://stream.binance.com:9443/ws/!ticker@arr
- *     A single socket delivers 24h ticker objects for EVERY trading pair about
- *     once per second. We read `s` (symbol) and `c` (last price) and update any
- *     symbol we track. No key or registration required.
- *
- *  2. FOREX & METALS — real anchor prices from the massive.com API, fetched
- *     server-side via /api/fx-quotes, then kept live by the simulator below.
- *
- *  3. SIMULATOR — a 500ms loop that nudges every forex/metal/energy price by a
- *     small random fraction (~+/-0.02%) with gentle mean-reversion toward its
- *     real anchor (or baseline), so the feed is always live and never errors.
- *
- * High-frequency ticks are written to a ref synchronously and flushed into
- * React state on a throttled timer so the tree never re-renders too often.
- */
-export interface MarketData {
-  /** Latest price for every known symbol. */
+interface Quotes {
   prices: Record<string, number>
-  /** Whether the Binance socket is currently connected. */
-  binanceConnected: boolean
+  timestamps: Record<string, number>
 }
 
-const SEED_PRICES = () =>
-  Object.fromEntries(ASSETS.map((a) => [a.symbol, a.basePrice])) as Record<string, number>
-
-export function useMarketData(): MarketData {
-  const [prices, setPrices] = useState<Record<string, number>>(SEED_PRICES)
-  const [binanceConnected, setBinanceConnected] = useState(false)
-
-  // Authoritative, synchronously-updated store of the latest tick per symbol.
-  const latestRef = useRef<Record<string, number>>(SEED_PRICES())
-  // Mean-reversion targets for simulated assets (real anchors when available).
-  const anchorRef = useRef<Record<string, number>>(
-    Object.fromEntries(ASSETS.map((a) => [a.symbol, a.basePrice])),
-  )
-  const dirtyRef = useRef(false)
-  // Mirror of `binanceConnected` for the simulator loop (avoids re-subscribing).
-  const binanceConnectedRef = useRef(false)
-  binanceConnectedRef.current = binanceConnected
-
-  // --- Throttled flush: push the ref into state ~10x/sec (only when changed).
+/** Worker ticks and the database snapshot share the exchange observation time. */
+export function useMarketData(): Quotes {
+  const [quotes, setQuotes] = useState<Quotes>({ prices: {}, timestamps: {} })
   useEffect(() => {
-    const id = setInterval(() => {
-      if (!dirtyRef.current) return
-      dirtyRef.current = false
-      setPrices({ ...latestRef.current })
-    }, 100)
-    return () => clearInterval(id)
-  }, [])
-
-  // --- Binance combined !ticker@arr stream (all crypto pairs, one socket). ---
-  useEffect(() => {
-    const tracked = new Set(
-      ASSETS.filter((a) => a.feed === "binance" && a.binanceStream).map((a) => a.symbol),
-    )
-    if (tracked.size === 0) return
-
-    let ws: WebSocket | null = null
-    let reconnectTimer: ReturnType<typeof setTimeout> | null = null
-    let disposed = false
-
-    const connect = () => {
-      ws = new WebSocket("wss://stream.binance.com:9443/ws/!ticker@arr")
-
-      ws.onopen = () => setBinanceConnected(true)
-
-      ws.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data)
-          // The combined stream delivers an array of 24h ticker objects:
-          // [{ s: "BTCUSDT", c: "73000.10", ... }, ...]
-          const arr: any[] = Array.isArray(data) ? data : data?.data
-          if (!Array.isArray(arr)) return
-          let changed = false
-          for (const t of arr) {
-            const sym = t?.s
-            if (typeof sym === "string" && tracked.has(sym)) {
-              const price = Number.parseFloat(t.c)
-              if (Number.isFinite(price)) {
-                latestRef.current[sym] = price
-                changed = true
-              }
-            }
-          }
-          if (changed) dirtyRef.current = true
-        } catch {
-          // Ignore malformed frames.
+    let closed = false
+    let dirty = false
+    let socket: WebSocket | undefined
+    let reconnect: ReturnType<typeof setTimeout>
+    const controller = new AbortController()
+    const ticks = new Map<string, { price: number; time: number }>()
+    function observe(symbol: string, price: number, time: number) {
+      const last = ticks.get(symbol)
+      if (!Object.hasOwn(ASSET_MAP, symbol) || !Number.isFinite(price) || price <= 0 || !Number.isFinite(time)
+        || time <= 0 || time > Date.now() || (last && time <= last.time)) return
+      ticks.set(symbol, { price, time })
+      dirty = true
+    }
+    function flush() {
+      const now = Date.now()
+      for (const [symbol, { price, time }] of ticks) {
+        if (isMarketOpenAt(ASSET_MAP[symbol].category, now / 1000) && !freshQuote(price, time, now)) {
+          ticks.delete(symbol)
+          dirty = true
         }
       }
-
-      ws.onclose = () => {
-        setBinanceConnected(false)
-        if (!disposed) reconnectTimer = setTimeout(connect, 2000)
+      if (!dirty || closed) return
+      const next: Quotes = { prices: {}, timestamps: {} }
+      for (const [symbol, { price, time }] of ticks) {
+        next.prices[symbol] = price
+        next.timestamps[symbol] = time
       }
-
-      ws.onerror = () => ws?.close()
+      setQuotes(next)
+      dirty = false
     }
-
-    connect()
-
-    return () => {
-      disposed = true
-      if (reconnectTimer) clearTimeout(reconnectTimer)
-      ws?.close()
-      ws = null
-    }
-  }, [])
-
-  // --- Initial Price Sync (Solves Weekend Stale Prices) ---
-  // When the WebSocket connects on a weekend, it receives no live updates because markets are closed.
-  // This initial fetch ensures the UI immediately displays the last known Friday close price from the DB.
-  useEffect(() => {
-    let disposed = false
-    const pullInitial = async () => {
+    let polling = false
+    async function poll() {
+      if (polling) return
+      polling = true
       try {
-        const res = await fetch(`/api/fx-quotes`)
-        if (!res.ok) return
-        const json = await res.json()
-        const fresh = json?.prices ?? {}
-        let changed = false
-        for (const [symbol, price] of Object.entries(fresh)) {
-          if (typeof price !== "number" || !Number.isFinite(price)) continue
-          anchorRef.current[symbol] = price
-          latestRef.current[symbol] = price
-          changed = true
-        }
-        if (changed) {
-          dirtyRef.current = true
-          // Force immediate React state override to clear hardcoded fallback values instantly.
-          setPrices({ ...latestRef.current })
-        }
-      } catch {
-        // ignore errors
-      }
+        const response = await fetch("/api/fx-quotes", { cache: "no-store", signal: controller.signal })
+        if (!response.ok || closed) return
+        const snapshot = await response.json() as Quotes
+        for (const [symbol, price] of Object.entries(snapshot.prices)) observe(symbol, price, snapshot.timestamps[symbol])
+        flush()
+      } catch { /* Existing observations expire even when polling fails. */ }
+      finally { polling = false }
     }
-    pullInitial()
-    return () => { disposed = true }
-  }, [])
-
-  // --- Real, zero-latency WebSocket connection directly to the risk-worker. ---
-  useEffect(() => {
-    // In production, this should point to your hosted risk-worker's WS URL.
-    // Ensure NEXT_PUBLIC_WS_URL is set in Vercel to something like wss://api.yourdomain.com:8080
-    const wsUrl = process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:8080"
-    
-    let ws: WebSocket | null = null
-    let reconnectTimer: ReturnType<typeof setTimeout> | null = null
-    let disposed = false
-
-    const connect = () => {
-      ws = new WebSocket(wsUrl)
-
-      ws.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data)
-          if (data.symbol && typeof data.price === "number") {
-            const sym = data.symbol
-            const price = data.price
-            anchorRef.current[sym] = price
-            latestRef.current[sym] = price
-            dirtyRef.current = true
-          }
-        } catch {
-          // ignore malformed frames
+    const url = process.env.NEXT_PUBLIC_WS_URL
+    function connect() {
+      if (!url || closed) return
+      try {
+        socket = new WebSocket(url)
+        socket.onmessage = ({ data }) => {
+          try {
+            const tick = JSON.parse(data)
+            observe(tick.symbol, tick.price, tick.timestamp)
+          } catch { /* Ignore an incomplete frame. */ }
         }
-      }
-
-      ws.onclose = () => {
-        if (!disposed) reconnectTimer = setTimeout(connect, 2000)
-      }
-
-      ws.onerror = () => ws?.close()
+        socket.onclose = () => { if (!closed) reconnect = setTimeout(connect, 3000) }
+        socket.onerror = () => socket?.close()
+      } catch { /* The HTTP feed continues when the socket is unavailable. */ }
     }
-
     connect()
-
+    void poll()
+    const pollingTimer = setInterval(poll, 10000)
+    const flushTimer = setInterval(flush, 150)
     return () => {
-      disposed = true
-      if (reconnectTimer) clearTimeout(reconnectTimer)
-      ws?.close()
-      ws = null
+      closed = true
+      controller.abort()
+      clearInterval(flushTimer)
+      clearInterval(pollingTimer)
+      clearTimeout(reconnect)
+      socket?.close()
     }
   }, [])
-
-
-
-  return { prices, binanceConnected }
+  return quotes
 }

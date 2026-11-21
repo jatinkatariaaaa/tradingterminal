@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server"
 import { createServerClient } from "@supabase/ssr"
+import { terminalReturn } from "@/lib/trading/terminal-return"
 
 // Routes reachable without a session. Everything else requires authentication.
 const PUBLIC_PATHS = ["/login", "/signup", "/api/admin", "/api/health"]
@@ -57,15 +58,14 @@ export async function updateSession(request: NextRequest) {
     const loginUrl = request.nextUrl.clone()
     loginUrl.pathname = "/login"
     loginUrl.search = ""
-    if (pathname !== "/") loginUrl.searchParams.set("redirectTo", pathname)
+    const target = terminalReturn(pathname + request.nextUrl.search)
+    if (target !== "/") loginUrl.searchParams.set("redirectTo", target)
     return NextResponse.redirect(loginUrl)
   }
 
   // Already signed in but sitting on an auth page → send to the terminal.
-  if (user && onPublicPath) {
-    const homeUrl = request.nextUrl.clone()
-    homeUrl.pathname = "/"
-    homeUrl.search = ""
+  if (user && (pathname === "/login" || pathname === "/signup")) {
+    const homeUrl = new URL(terminalReturn(request.nextUrl.searchParams.get("redirectTo")), request.nextUrl.origin)
     return NextResponse.redirect(homeUrl)
   }
 

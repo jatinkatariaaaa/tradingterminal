@@ -75,7 +75,7 @@ export function ChartOverlay({ chartApiRef }: { chartApiRef: ChartApiRef }) {
 
   const items: OverlayItem[] = []
 
-  items.push({
+  if (Number.isFinite(marketPrice)) items.push({
     key: "marker",
     price: marketPrice,
     kind: "marker",

@@ -2,6 +2,8 @@ import { NextResponse } from "next/server"
 import { requireUser } from "../_auth"
 import { createSupabaseServiceClient } from "@/lib/supabase/service"
 import { categoryOf } from "@/lib/trading/category"
+import { ASSET_MAP } from "@/lib/trading/assets"
+import { freshQuote } from "@/lib/trading/quote-health"
 import { isMarketOpen } from "@/lib/trading/market-hours"
 
 /**
@@ -50,6 +52,7 @@ export async function POST(request: Request) {
     )
   }
 
+  if (!Object.hasOwn(ASSET_MAP, symbol)) return NextResponse.json({ error: "Unknown trading instrument" }, { status: 400 })
   const category = categoryOf(symbol)
   if (!isMarketOpen(category)) {
     return NextResponse.json({ error: "Market is closed for this asset class." }, { status: 400 })
@@ -78,12 +81,12 @@ export async function POST(request: Request) {
   // Server price: used as placed_price so the worker verifies a genuine cross.
   const { data: priceRow, error: priceError } = await supabase
     .from("prices")
-    .select("price")
+    .select("price,updated_at")
     .eq("symbol", symbol)
     .maybeSingle()
   if (priceError) return NextResponse.json({ error: priceError.message }, { status: 422 })
-  if (!priceRow) {
-    return NextResponse.json({ error: `No server price for ${symbol}` }, { status: 422 })
+  if (!priceRow || !freshQuote(Number(priceRow.price), Date.parse(priceRow.updated_at), Date.now())) {
+    return NextResponse.json({ error: `No fresh server quote for ${symbol}` }, { status: 422 })
   }
 
   // Insert the pending order (service_role bypasses RLS).

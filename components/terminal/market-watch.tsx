@@ -130,7 +130,7 @@ export function MarketWatch() {
   }
 
   const asset = getAsset(activeSymbol)
-  const live = prices[activeSymbol] ?? asset.basePrice
+  const live = prices[activeSymbol] ?? NaN
   const st = stats[activeSymbol]
   const low = st?.low ?? live
   const high = st?.high ?? live
@@ -181,7 +181,7 @@ export function MarketWatch() {
           </thead>
           <tbody>
             {list.map((a) => (
-              <Row key={a.symbol} asset={a} price={prices[a.symbol] ?? a.basePrice} stats={stats[a.symbol]} active={a.symbol === activeSymbol} fav={isFavorite(a.symbol)} onSelect={setActiveSymbol} onTrade={trade} onFav={toggleFavorite} />
+              <Row key={a.symbol} asset={a} price={prices[a.symbol] ?? NaN} stats={stats[a.symbol]} active={a.symbol === activeSymbol} fav={isFavorite(a.symbol)} onSelect={setActiveSymbol} onTrade={trade} onFav={toggleFavorite} />
             ))}
           </tbody>
         </table>

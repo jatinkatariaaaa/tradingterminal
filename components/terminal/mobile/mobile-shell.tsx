@@ -37,7 +37,7 @@ function Screen({ show, children }: { show: boolean; children: ReactNode }) {
 }
 
 function ChartHeader({ onPickSymbol }: { onPickSymbol: () => void }) {
-  const { marketPrice, derived, binanceConnected } = useMarket()
+  const { marketPrice, derived, quoteLive } = useMarket()
   const { activeSymbol, openPositions } = useTradingState()
   const asset = getAsset(activeSymbol)
   const { bid, ask } = bidAsk(marketPrice, spreadOf(asset, marketPrice))
@@ -53,7 +53,7 @@ function ChartHeader({ onPickSymbol }: { onPickSymbol: () => void }) {
       </span>
       <span className="ml-auto flex items-center gap-2">
         {openPositions.length ? <span className={cn("rounded-full bg-secondary px-2.5 py-1 font-mono text-[12px] font-semibold tabular-nums", pnlTone(pnl))}>{money(pnl, { sign: true })}</span> : null}
-        <span className={cn("h-2 w-2 rounded-full", binanceConnected ? "bg-profit" : "bg-muted-foreground")} title={binanceConnected ? "Live prices" : "Connecting"} />
+        <span className={cn("h-2 w-2 rounded-full", quoteLive ? "bg-profit" : "bg-muted-foreground")} title={quoteLive ? "Live prices" : "No live quote"} />
       </span>
     </header>
   )

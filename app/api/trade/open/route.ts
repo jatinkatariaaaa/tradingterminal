@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 import { requireUser } from "../_auth"
 import { createSupabaseServiceClient } from "@/lib/supabase/service"
-import { getAsset } from "@/lib/trading/assets"
+import { ASSET_MAP } from "@/lib/trading/assets"
 import { categoryOf } from "@/lib/trading/category"
 import { isMarketOpen } from "@/lib/trading/market-hours"
 
@@ -35,12 +35,13 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "accountId, symbol, direction, positive volume required" }, { status: 400 })
   }
 
+  if (!Object.hasOwn(ASSET_MAP, symbol)) return NextResponse.json({ error: "Unknown trading instrument" }, { status: 400 })
   const category = categoryOf(symbol)
   if (!isMarketOpen(category)) {
     return NextResponse.json({ error: "Market is closed for this asset class." }, { status: 400 })
   }
 
-  const asset = getAsset(symbol)
+  const asset = ASSET_MAP[symbol]
   const supabase = createSupabaseServiceClient()
   const { data, error } = await supabase.rpc("open_market_position", {
     p_user_id: auth.userId,

@@ -59,7 +59,7 @@ export function RiskCalculator() {
 
   const r = useMemo(() => {
     const asset = getAsset(symbol)
-    const mid = prices[symbol] ?? asset.basePrice
+    const mid = prices[symbol] ?? NaN
     const { bid, ask } = bidAsk(mid, spreadOf(asset, mid))
     const entry = direction === "buy" ? ask : bid
     const pip = pipSizeOf(symbol)

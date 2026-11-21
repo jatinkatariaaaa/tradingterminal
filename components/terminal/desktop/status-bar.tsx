@@ -22,7 +22,7 @@ const pad = (n: number) => String(n).padStart(2, "0")
 
 /** The strip under the workspace: feed, server time, sessions, login and shortcuts. */
 export function StatusBar() {
-  const { binanceConnected } = useMarket()
+  const { quoteLive } = useMarket()
   const { accounts, accountId, account, openPositions, pendingOrders } = useTradingState()
   const now = useNow(1000)
   const current = accounts.find((a) => a.id === accountId)
@@ -30,9 +30,9 @@ export function StatusBar() {
 
   return (
     <footer className="flex h-7 shrink-0 items-center gap-4 border-t border-border bg-card px-3 text-[11px] text-muted-foreground">
-      <span className="flex items-center gap-1.5" title={binanceConnected ? "Crypto prices are streaming; forex and gold update from the quote feed" : "Connecting to the crypto price stream"}>
-        <span className={cn("h-1.5 w-1.5 rounded-full", binanceConnected ? "bg-profit shadow-[0_0_0_3px] shadow-profit/20" : "bg-warning")} />
-        {binanceConnected ? "Prices live" : "Connecting"}
+      <span className="flex items-center gap-1.5" title={quoteLive ? "Current instrument has a fresh quote" : "Waiting for a fresh quote for this instrument"}>
+        <span className={cn("h-1.5 w-1.5 rounded-full", quoteLive ? "bg-profit shadow-[0_0_0_3px] shadow-profit/20" : "bg-warning")} />
+        {quoteLive ? "Prices live" : "No live quote"}
       </span>
       <span className="font-mono tabular-nums" title="Server time (UTC)">
         {now ? `${pad(now.getUTCHours())}:${pad(now.getUTCMinutes())}:${pad(now.getUTCSeconds())} UTC` : "--:--:-- UTC"}

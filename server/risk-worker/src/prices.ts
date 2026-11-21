@@ -2,21 +2,11 @@ import WebSocket from "ws"
 import { ASSETS, ASSET_MAP, isMarketOpen } from "./assets.js"
 import { broadcastPrice } from "./ws-server.js"
 
-const latest: Record<string, number> = {}
+import { recordQuote } from "./quotes.js"
+export { getPrices } from "./quotes.js"
 
-/**
- * Tracks symbols that have received at least one REAL price from a WebSocket
- * feed (Binance/Tiingo/TwelveData). Symbols NOT in this set still hold a stale
- * basePrice fallback and must NEVER be published to public.prices.
- */
-export const realPriceReceived = new Set<string>()
-
-export function getPrice(symbol: string): number | undefined {
-  return latest[symbol]
-}
-
-export function getPrices(): Record<string, number> {
-  return { ...latest }
+function observe(symbol: string, price: number, timestamp: number) {
+  if (recordQuote(symbol, price, timestamp)) broadcastPrice(symbol, price, timestamp)
 }
 
 // ------------------------------------------------------------------ Binance
@@ -55,9 +45,7 @@ function startBinance(): void {
           if (Number.isFinite(price)) {
             const internalSymbol = reverseMap[sym]
             if (internalSymbol) {
-              latest[internalSymbol] = price
-              realPriceReceived.add(internalSymbol)
-              broadcastPrice(internalSymbol, price)
+              observe(internalSymbol, price, Number(data.T))
             }
           }
         }
@@ -83,7 +71,7 @@ const TIINGO_WS_URL = "wss://api.tiingo.com/fx"
 
 function startTiingo(): void {
   const TIINGO_KEY = process.env.TIINGO_API_KEY ?? ""
-  console.log("Checking API Key:", !!TIINGO_KEY)
+  if (!TIINGO_KEY) { console.warn("Tiingo FX feed is not configured"); return }
 
   // Tiingo FX WS only supports Forex and Precious Metals. WTI/Crypto will crash it.
   const targets = ASSETS.filter((a) => a.feed === "finnhub" && (a.category === "forex" || a.symbol === "XAUUSD"))
@@ -130,7 +118,7 @@ function startTiingo(): void {
         const payload = JSON.parse(raw.toString())
         
         if (payload.messageType === "I") {
-          console.log("Tiingo info:", payload)
+          console.log("Tiingo subscription acknowledged")
           return
         }
 
@@ -149,9 +137,7 @@ function startTiingo(): void {
             if (internalSymbol) {
               const asset = ASSET_MAP[internalSymbol]
               if (asset && !isMarketOpen(asset.category)) return // Block closed market ticks
-              latest[internalSymbol] = midPrice
-              realPriceReceived.add(internalSymbol)
-              broadcastPrice(internalSymbol, midPrice)
+              observe(internalSymbol, midPrice, Date.parse(msgArray[2]))
             }
           }
         }
@@ -181,7 +167,8 @@ function startTiingo(): void {
 
 // ----------------------------------------------------------------- Twelve Data (WTI/USD Only)
 function startTwelveData(): void {
-  const TWELVEDATA_KEY = process.env.TWELVEDATA_API_KEY ?? ""
+  const TWELVEDATA_KEY = process.env.TWELVEDATA_API_KEY || process.env.TWELVE_DATA_KEY
+  if (!TWELVEDATA_KEY) { console.warn("Twelve Data energy feed is not configured"); return }
   const TWELVEDATA_WS_URL = `wss://ws.twelvedata.com/v1/quotes/price?apikey=${TWELVEDATA_KEY}`
 
   // Ensure we only subscribe to USOIL (WTI/USD) to bypass 2-symbol limit safely.
@@ -214,11 +201,9 @@ function startTwelveData(): void {
         const msg = JSON.parse(raw.toString())
         if (msg.event === "price" && msg.symbol === usoilAsset.twelveDataSymbol && typeof msg.price === "number") {
           if (!isMarketOpen(usoilAsset.category)) return // Block closed market ticks
-          latest["USOIL"] = msg.price
-          realPriceReceived.add("USOIL")
-          broadcastPrice("USOIL", msg.price)
+          observe("USOIL", msg.price, Number(msg.timestamp) * 1000)
         } else if (msg.event === "error") {
-          console.error("Twelve Data WebSocket error:", msg)
+          console.error("Twelve Data rejected the energy subscription")
         }
       } catch {
         // ignore malformed frames

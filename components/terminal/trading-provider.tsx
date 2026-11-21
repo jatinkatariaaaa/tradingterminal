@@ -34,6 +34,7 @@ import type {
 import { useServerPortfolio } from "@/hooks/use-server-portfolio"
 import { useServerAccounts } from "@/hooks/use-server-accounts"
 import { toOpenPosition, toPendingOrder, toClosedTrade, toAccountState } from "@/lib/trading/server-adapters"
+import { isMarketOpen } from "@/lib/trading/market-hours"
 import { useToast } from "@/hooks/use-toast"
 
 // ---------------------------------------------------------------------------
@@ -134,7 +135,8 @@ interface DerivedPnl {
 interface TradingContextValue {
   // Market
   prices: Record<string, number>
-  binanceConnected: boolean
+  quoteLive: boolean
+  quoteTime: number
   marketPrice: number
   // Active asset
   activeSymbol: string
@@ -206,7 +208,7 @@ interface TradingContextValue {
 //  - Actions: dispatchers — stable for the life of the provider.
 type MarketContextValue = Pick<
   TradingContextValue,
-  "prices" | "binanceConnected" | "marketPrice" | "derived"
+  "prices" | "quoteTime" | "quoteLive" | "marketPrice" | "derived"
 >
 type TradingStateValue = Pick<
   TradingContextValue,
@@ -347,11 +349,13 @@ export interface TradingProviderProps {
 
 export function TradingProvider({ children, initialAccountId }: TradingProviderProps) {
   const { toast } = useToast()
-  const { prices, binanceConnected } = useMarketData()
+  const { prices, timestamps } = useMarketData()
 
   const [activeSymbol, setActiveSymbolState] = useState<string>(ASSETS[0].symbol)
   const activeAsset = getAsset(activeSymbol)
-  const marketPrice = prices[activeSymbol] ?? activeAsset.basePrice
+  const marketPrice = prices[activeSymbol] ?? NaN
+  const quoteTime = timestamps[activeSymbol] ?? 0
+  const quoteLive = Number.isFinite(marketPrice) && isMarketOpen(activeAsset.category) && Date.now() - quoteTime <= 120_000
 
   // ---- Server account integration ----
   const { accounts: serverAccounts, loading: accountsLoading, error: accountsError, refresh: refreshAccounts } = useServerAccounts()
@@ -376,7 +380,7 @@ export function TradingProvider({ children, initialAccountId }: TradingProviderP
 
   // ---- Server-authoritative state via Realtime ----
   const { positions: serverPositions, orders: serverOrders, trades: serverTrades, refresh: refreshPortfolio } =
-    useServerPortfolio(accountId)
+    useServerPortfolio(serverAccounts.some(a => a.id === accountId) ? accountId : null)
 
   // Adapt server types → client types so all downstream components work unchanged.
   const openPositions = useMemo(
@@ -599,7 +603,8 @@ export function TradingProvider({ children, initialAccountId }: TradingProviderP
     const prices = pricesRef.current
     const asset = getAsset(symbol)
     const livePrice = prices[symbol]
-    const mid = Number.isFinite(livePrice) ? livePrice : asset.basePrice
+    if (!Number.isFinite(livePrice) || !isMarketOpen(asset.category)) return { ok: false, reason: "A fresh market quote is unavailable." }
+    const mid = livePrice
     const volume = roundToLotStep(Math.max(asset.lotStep, draft.volume), asset.lotStep)
     const spread = spreadOf(asset, mid)
     const sl = draft.slEnabled ? draft.slPrice : null
@@ -972,8 +977,8 @@ export function TradingProvider({ children, initialAccountId }: TradingProviderP
 
   // Fast slice — recreated on every tick (prices/marketPrice/derived move).
   const marketValue = useMemo<MarketContextValue>(
-    () => ({ prices, binanceConnected, marketPrice, derived }),
-    [prices, binanceConnected, marketPrice, derived],
+    () => ({ prices, quoteTime, quoteLive, marketPrice, derived }),
+    [prices, quoteTime, quoteLive, marketPrice, derived],
   )
 
   // Slow slice — recreated only when account/positions/draft/manage actually change.

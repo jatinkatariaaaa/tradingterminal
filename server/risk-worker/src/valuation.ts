@@ -69,7 +69,7 @@ export function usdPerUnit(currency: string, prices: Record<string, number>): nu
   if (Number.isFinite(direct) && (direct as number) > 0) return direct as number
   const inverse = prices[`USD${currency}`]
   if (Number.isFinite(inverse) && (inverse as number) > 0) return 1 / (inverse as number)
-  return 1
+  return Number.NaN
 }
 
 /** GROSS USD PnL at an explicit exit fill (no costs). */

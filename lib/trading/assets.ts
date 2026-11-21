@@ -214,6 +214,7 @@ export function twelveDataSymbol(asset: Asset): string | null {
 
 // Format a price using the asset's configured decimal precision.
 export function formatPrice(price: number, digits: number): string {
+  if (!Number.isFinite(price)) return "—"
   return price.toLocaleString("en-US", {
     minimumFractionDigits: digits,
     maximumFractionDigits: digits,
@@ -221,6 +222,7 @@ export function formatPrice(price: number, digits: number): string {
 }
 
 export function formatMoney(value: number): string {
+  if (!Number.isFinite(value)) return "—"
   const sign = value < 0 ? "-" : ""
   return `${sign}$${Math.abs(value).toLocaleString("en-US", {
     minimumFractionDigits: 2,

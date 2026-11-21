@@ -68,7 +68,7 @@ export function CommandPalette() {
               <CommandItem key={a.symbol} value={`${a.symbol} ${a.label}`} onSelect={() => run(() => setActiveSymbol(a.symbol))}>
                 <span className="w-[76px] font-semibold">{a.symbol}</span>
                 <span className="truncate text-muted-foreground">{a.label}</span>
-                <span className="ml-auto font-mono text-xs text-muted-foreground tabular-nums">{formatPrice(prices[a.symbol] ?? a.basePrice, a.digits)}</span>
+                <span className="ml-auto font-mono text-xs text-muted-foreground tabular-nums">{formatPrice(prices[a.symbol] ?? NaN, a.digits)}</span>
                 <button
                   type="button"
                   onClick={(e) => {

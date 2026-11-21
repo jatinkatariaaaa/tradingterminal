@@ -1,6 +1,7 @@
 "use client"
 
-import { useActionState } from "react"
+import { Suspense, useActionState } from "react"
+import { useSearchParams } from "next/navigation"
 import { AlertCircle, ArrowUpRight } from "lucide-react"
 import { signIn, type AuthActionState } from "../actions"
 import { AuthShell, AuthField } from "@/components/auth/auth-shell"
@@ -9,6 +10,11 @@ import { SITE_URL } from "@/components/terminal/brand"
 const initial: AuthActionState = { error: null }
 
 export default function LoginPage() {
+  return <Suspense><LoginForm /></Suspense>
+}
+
+function LoginForm() {
+  const search = useSearchParams()
   const [state, action, pending] = useActionState(signIn, initial)
 
   return (
@@ -18,6 +24,7 @@ export default function LoginPage() {
         <p className="mt-2 text-[14.5px] leading-relaxed text-muted-foreground">Use the same email and password as your dashboard.</p>
 
         <form action={action} className="mt-8 flex flex-col gap-4">
+          <input type="hidden" name="redirectTo" value={search.get("redirectTo") ?? "/"} />
           <AuthField label="Email" name="email" type="email" autoComplete="email" inputMode="email" placeholder="you@example.com" required />
           <AuthField label="Password" name="password" type="password" autoComplete="current-password" placeholder="Your password" required />
 

@@ -105,7 +105,7 @@ function SymbolSheet({
 
   const body = (() => {
     if (!asset || !symbol) return null
-    const price = prices[symbol] ?? asset.basePrice
+    const price = prices[symbol] ?? NaN
     const spread = spreadOf(asset, price)
     const { bid, ask } = bidAsk(price, spread)
     const st = stats[symbol]
@@ -266,7 +266,7 @@ export function QuotesScreen({ onOpenChart }: { onOpenChart: () => void }) {
 
       <div className="min-h-0 flex-1 divide-y divide-border/60 overflow-y-auto overscroll-contain">
         {list.map((a) => (
-          <QuoteRow key={a.symbol} asset={a} price={prices[a.symbol] ?? a.basePrice} stats={stats[a.symbol]} fav={isFavorite(a.symbol)} active={a.symbol === activeSymbol} onOpen={setSheet} />
+          <QuoteRow key={a.symbol} asset={a} price={prices[a.symbol] ?? NaN} stats={stats[a.symbol]} fav={isFavorite(a.symbol)} active={a.symbol === activeSymbol} onOpen={setSheet} />
         ))}
         {list.length === 0 ? (
           cat === "favorites" && !query ? (

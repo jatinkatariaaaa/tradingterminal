@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { createSupabaseServiceClient } from "@/lib/supabase/service"
 import { verifyAdminApiKey } from "@/lib/admin-api-key"
+import { createHash } from "node:crypto"
 
 /**
  * Creates the account a trader trades on. Called by The People Prop's CRM after
@@ -18,11 +19,16 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const body = await request.json()
+    const body = await request.json().catch(() => null)
+    if (!body || typeof body !== "object") return NextResponse.json({ error: "Invalid request" }, { status: 400 })
     const { userId, accountSize, rules, programKey, phase, status, label } = body
     const size = Number(accountSize)
 
-    if (!userId || !Number.isFinite(size) || size <= 0 || !rules) {
+    const crmId = body.businessAccountId
+    if (crmId !== undefined && (typeof crmId !== "string" || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(crmId))) {
+      return NextResponse.json({ error: "Invalid business account ID" }, { status: 400 })
+    }
+    if (!userId || !Number.isFinite(size) || size <= 0 || !rules || typeof rules !== "object") {
       return NextResponse.json({ error: "userId, a positive accountSize and rules are required" }, { status: 400 })
     }
 
@@ -31,9 +37,11 @@ export async function POST(request: Request) {
     const leverage = Math.min(500, Math.max(1, Math.round(Number(body.leverage) || 100)))
 
     const supabase = createSupabaseServiceClient()
+    const fingerprint = createHash("sha256").update(JSON.stringify([userId, size, programKey ?? null, terminalPhase])).digest("hex")
     const { data: newAccount, error: createError } = await supabase
       .from("accounts")
       .insert({
+        ...(crmId ? { id: crmId, provisioning_fingerprint: fingerprint } : {}),
         user_id: userId,
         label: label || `TPP $${size.toLocaleString("en-US")} ${terminalPhase === "funded" ? "Funded" : "Evaluation"}`,
         phase: terminalPhase,
@@ -55,6 +63,15 @@ export async function POST(request: Request) {
       .select()
       .single()
 
+    if (crmId && createError?.code === "23505") {
+      const { data: existing, error } = await supabase.from("accounts").select("id,provisioning_fingerprint")
+        .eq("id", crmId).maybeSingle()
+      if (error) throw error
+      if (existing?.provisioning_fingerprint !== fingerprint) {
+        return NextResponse.json({ error: "Provisioning identity conflict" }, { status: 409 })
+      }
+      return NextResponse.json({ success: true, account: { id: existing.id } })
+    }
     if (createError) return NextResponse.json({ error: createError.message }, { status: 422 })
     return NextResponse.json({ success: true, account: newAccount })
   } catch (err) {

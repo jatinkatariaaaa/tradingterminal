@@ -1,45 +1,24 @@
-# Risk Worker (Phase 3, Step 3a)
+# Terminal risk worker
 
-Standalone, server-authoritative risk engine. It ingests prices **independently**
-(never trusting any browser), marks every open position on the **close side** of
-the spread (bid for longs, ask for shorts), recomputes equity, fills triggered
-pending orders, applies SL/TP, rolls the 5pm ET daily baseline, and fires
-drawdown breaches — all by calling the `SECURITY DEFINER` functions in
-`supabase/migrations/0004_risk_engine.sql` with the **service-role** key.
+Run this service continuously alongside the Next.js terminal. It receives trades from Binance for crypto, quotes from Tiingo for FX and gold, and quotes from Twelve Data for WTI. It publishes observed prices to Supabase and evaluates working orders, stops and account limits.
 
-This is the only component (besides the Step 3b API routes) allowed to write
-money, positions, and trades. The browser remains read-only.
+## Configure and start
 
-## Why a separate service
+Set `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` on the worker. Set `TIINGO_API_KEY` for FX and gold and `TWELVEDATA_API_KEY` for WTI. Configure the website callback with `CRM_WEBHOOK_URL` and `TERMINAL_WEBHOOK_SECRET`. The worker listens on `PORT` or `WS_PORT`, defaulting to 8080.
 
-Next.js route handlers are request-scoped; the risk engine needs a long-lived
-process holding a price socket and a steady tick loop. Run it as its own Node
-service (the same place your Massive.com/Socket.io feed lives — swap `prices.ts`
-to consume that feed when ready).
-
-## Layout
-
-- `valuation.ts` — pure functions: close-side fills, gross/net PnL (USD), margin,
-  equity. Mirrors the client's `floatingPnlUsd` so server and UI agree.
-- `prices.ts` — independent ingestion: Binance combined WS for crypto + Yahoo
-  poll for FX/metals/energy. Exposes a synchronous latest-price getter.
-- `db.ts` — service-role Supabase client + typed RPC wrappers.
-- `worker.ts` — the tick loop tying it together.
-
-## Run
-
-```bash
-cd "server/risk-worker"
-cp .env.example .env   # fill SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY
-npm install
-npm run dev
+```sh
+cd server/risk-worker
+npm ci
+npm run typecheck
+npm start
 ```
 
-## Important
+The terminal web app needs its own `TWELVE_DATA_KEY` or `TWELVEDATA_API_KEY` for historical charts. Set `NEXT_PUBLIC_WS_URL` to the worker's public secure WebSocket URL for streaming ticks. The browser also polls the terminal quote API.
 
-- Requires migrations `0001`–`0004` applied first.
-- `SUPABASE_SERVICE_ROLE_KEY` bypasses RLS — keep it on the server only, never in
-  any `NEXT_PUBLIC_*` variable or the browser bundle.
-- Step 3a does **not** cut the client over; the existing in-browser
-  `TradingProvider` keeps running. Step 3b adds the API routes and flips the UI
-  to render server state.
+Apply the terminal migrations including `20261121053639_trusted_terminal_prices_and_provisioning.sql` before rolling out the updated worker and web app. Set service credentials only in the server environments.
+
+## Check the feed
+
+`GET /api/health` returns 200 when all listed instruments in an open session have a valid quote from the last 120 seconds. Its 503 response lists missing or stale symbols. Scheduled closed markets are excluded from readiness. A fresh crypto quote cannot hide a missing FX feed.
+
+If prices stop, check the worker process and its subscription, connection and database publication messages. Confirm the provider allows the configured instruments and the server can reach its WebSocket endpoint. The database timestamp records the provider event time. The worker pauses price-dependent risk decisions while any required quote or USD conversion is missing.

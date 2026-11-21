@@ -15,10 +15,10 @@ export function startWsServer(port: number) {
   console.log(`[WS Server] Live price broadcasting started on port ${port}`)
 }
 
-export function broadcastPrice(symbol: string, price: number) {
+export function broadcastPrice(symbol: string, price: number, timestamp: number) {
   if (clients.size === 0) return
 
-  const payload = JSON.stringify({ symbol, price, timestamp: Date.now() })
+  const payload = JSON.stringify({ symbol, price, timestamp })
   for (const client of clients) {
     if (client.readyState === WebSocket.OPEN) {
       client.send(payload)

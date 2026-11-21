@@ -38,7 +38,7 @@ export function DesktopChartHeader() {
   const base = st?.open ?? marketPrice
   const chg = base ? ((marketPrice - base) / base) * 100 : 0
   const volume = roundToLotStep(Math.max(asset.lotStep, draft.volume), asset.lotStep)
-  const disabled = !account.tradable || isSubmitting || !open
+  const disabled = !Number.isFinite(marketPrice) || !account.tradable || isSubmitting || !open
   const step = (d: number) => setDraft({ volume: Math.max(asset.lotStep, Number((draft.volume + d).toFixed(2))) })
 
   return (

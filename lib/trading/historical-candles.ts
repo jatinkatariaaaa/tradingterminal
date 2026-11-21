@@ -1,4 +1,4 @@
-import { getAsset, twelveDataSymbol } from "@/lib/trading/assets"
+import { ASSET_MAP, twelveDataSymbol } from "@/lib/trading/assets"
 import { categoryOf } from "@/lib/trading/category"
 import { isMarketOpenAt } from "@/lib/trading/market-hours"
 import type { ReplayCandle as Candle } from "@/lib/trading/replay"
@@ -13,9 +13,9 @@ import type { ReplayCandle as Candle } from "@/lib/trading/replay"
  * Sub-minute timeframes (5s, 15s) return empty — the client builds those live.
  */
 
-// Same key resolution chain as /api/fx-quotes so both routes always agree.
+// The history provider key stays on the server.
 const TWELVEDATA_KEY =
-  process.env.TWELVE_DATA_KEY || process.env.TWELVEDATA_API_KEY || "b6a9bb0bed6f48919daded4e7b1cdef7"
+  process.env.TWELVE_DATA_KEY || process.env.TWELVEDATA_API_KEY
 const BASE_URL = "https://api.twelvedata.com/time_series"
 
 // --------------- In-memory cache (15 min TTL) ---------------
@@ -76,6 +76,7 @@ async function fetchTwelveDataCandles(
   symbol: string,
   interval: string,
 ): Promise<Candle[]> {
+  if (!TWELVEDATA_KEY) return []
   const url = `${BASE_URL}?symbol=${encodeURIComponent(symbol)}&interval=${interval}&outputsize=1000&timezone=UTC&apikey=${TWELVEDATA_KEY}`
 
   try {
@@ -101,7 +102,8 @@ async function fetchTwelveDataCandles(
       const l = Number.parseFloat(v.low)
       const c = Number.parseFloat(v.close)
 
-      if (Number.isNaN(o) || o <= 0) continue
+      if (![t, o, h, l, c].every(value => Number.isFinite(value) && value > 0) || l > Math.min(o, c) || h < Math.max(o, c)) continue
+      if (out.length && t <= out[out.length - 1].time) continue
       out.push({ time: t, open: o, high: h, low: l, close: c })
     }
     return out
@@ -113,7 +115,8 @@ async function fetchTwelveDataCandles(
 
 // --------------- Route handler ---------------
 export async function getHistoricalCandles(symbol: string, tf: number): Promise<Candle[]> {
-  const asset = getAsset(symbol)
+  const asset = ASSET_MAP[symbol]
+  if (!asset) return []
   const tdSymbol = twelveDataSymbol(asset)
   if (!tdSymbol || !Number.isFinite(tf) || tf <= 0) {
     return []

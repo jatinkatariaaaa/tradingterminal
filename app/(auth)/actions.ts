@@ -2,6 +2,7 @@
 
 import { redirect } from "next/navigation"
 import { createSupabaseServerClient } from "@/lib/supabase/server"
+import { terminalReturn } from "@/lib/trading/terminal-return"
 
 /** Result surfaced back to the auth forms on failure. */
 export interface AuthActionState {
@@ -24,7 +25,7 @@ export async function signIn(
   const supabase = await createSupabaseServerClient()
   const { error } = await supabase.auth.signInWithPassword({ email, password })
   if (error) return { error: error.message }
-  redirect("/")
+  redirect(terminalReturn(formData.get("redirectTo")))
 }
 
 export async function signOut(): Promise<void> {

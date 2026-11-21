@@ -1,46 +1,19 @@
-// Publish the worker's latest server-observed prices into public.prices so the
-// Next.js /api/trade routes can price market orders authoritatively (Option A).
-// Upserts every tracked symbol that currently has a price.
-// Throttled: only updates each symbol in the Supabase DB once every 5 seconds.
-
 import { supabase } from "./db.js"
-import { getPrices, realPriceReceived } from "./prices.js"
-import { ASSET_MAP, isMarketOpen } from "./assets.js"
+import { getFreshQuotes } from "./quotes.js"
 
-const lastPublishedTime: Record<string, number> = {}
+const published = new Map<string, number>()
+let nextPublish = 0
 
 export async function publishPrices(): Promise<void> {
-  const prices = getPrices()
   const now = Date.now()
-  const rows: { symbol: string; price: number; updated_at: string }[] = []
-
-  for (const [symbol, price] of Object.entries(prices)) {
-    if (!Number.isFinite(price) || price <= 0) continue
-
-    // CRITICAL: Never publish a price that hasn't come from a real WebSocket
-    // feed. Without this guard, stale basePrice fallbacks could reach the DB
-    // and cause trades to fill at wildly wrong prices.
-    if (!realPriceReceived.has(symbol)) continue
-
-    const asset = ASSET_MAP[symbol]
-    if (asset && !isMarketOpen(asset.category)) continue
-
-    const lastTime = lastPublishedTime[symbol] ?? 0
-    if (now - lastTime >= 5000) {
-      rows.push({
-        symbol,
-        price,
-        updated_at: new Date().toISOString(),
-      })
-      lastPublishedTime[symbol] = now
-    }
-  }
-
-  if (rows.length === 0) return
-
-  const { error } = await supabase.from("prices").upsert(rows, { onConflict: "symbol" })
-  if (error) {
-    // Non-fatal: the next tick retries. Log so price staleness is visible.
-    console.warn("publishPrices failed:", error.message)
-  }
+  if (now < nextPublish) return
+  nextPublish = now + 5000
+  const changed = getFreshQuotes(now).filter(([symbol, quote]) => quote.time > (published.get(symbol) ?? 0))
+  if (!changed.length) return
+  const rows = changed.map(([symbol, quote]) => ({
+    symbol, price: quote.price, updated_at: new Date(quote.time).toISOString(),
+  }))
+  const { error } = await supabase.rpc("publish_terminal_prices", { p_quotes: rows })
+  if (error) { console.warn("Price publication failed:", error.message); return }
+  for (const [symbol, quote] of changed) published.set(symbol, quote.time)
 }

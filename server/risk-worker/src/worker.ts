@@ -14,7 +14,7 @@
 // logic; review carefully before relying on it in production.
 
 import "./preload.js"
-import { ASSET_MAP, getPrice, getPrices, startIngestion } from "./prices.js"
+import { ASSET_MAP, getPrices, startIngestion } from "./prices.js"
 import { startWsServer } from "./ws-server.js"
 import { publishPrices } from "./publish-prices.js"
 import {
@@ -38,6 +38,8 @@ import {
   computeEquity,
   grossPnlUsd,
   marginRequired,
+  quoteCurrencyOf,
+  usdPerUnit,
   markPosition,
   openFillPrice,
   spreadOf,
@@ -102,12 +104,14 @@ async function tickAccount(
 ): Promise<void> {
   const balance = account.balance
   const prices = getPrices()
+  const canValue = (symbol: string) => Number.isFinite(prices[symbol]) && Number.isFinite(usdPerUnit(quoteCurrencyOf(symbol), prices))
 
+  let traded = false
   // 1) Fill triggered pending orders (genuine cross from the placed side).
   for (const o of orders) {
-    const price = getPrice(o.symbol)
+    const price = prices[o.symbol]
     const asset = ASSET_MAP[o.symbol]
-    if (price == null || !asset) continue
+    if (!canValue(o.symbol) || price == null || !asset) continue
     const t = o.trigger_price
     const ref = o.placed_price
     const hit =
@@ -131,6 +135,7 @@ async function tickAccount(
         margin,
         commission: commissionFor(o.volume),
       })
+      traded = true
     } catch (err) {
       // Unexpected DB error — leave the order working for a later tick.
       console.warn(`[order ${o.id}] fill skipped:`, (err as Error).message)
@@ -140,8 +145,8 @@ async function tickAccount(
   // 2) SL/TP closes.
   const survivors: PositionRow[] = []
   for (const p of positions) {
-    const mid = getPrice(p.symbol)
-    if (mid == null) {
+    const mid = prices[p.symbol]
+    if (mid == null || !canValue(p.symbol)) {
       survivors.push(p)
       continue
     }
@@ -160,6 +165,10 @@ async function tickAccount(
       reason: hit.reason,
     })
   }
+
+  // Re-read balance and positions together on the next tick after a fill or close.
+  // Never calculate thresholds from an incomplete portfolio.
+  if (traded || survivors.length !== positions.length || survivors.some(p => !canValue(p.symbol))) return
 
   // 3) Equity on the close side from the survivors.
   const valued = survivors.map((p) => ({

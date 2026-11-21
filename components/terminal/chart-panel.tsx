@@ -16,7 +16,7 @@ import {
 import { cn } from "@/lib/utils"
 import { formatPrice, getAsset } from "@/lib/trading/assets"
 import { categoryOf } from "@/lib/trading/category"
-import { isMarketOpen, isMarketOpenAt } from "@/lib/trading/market-hours"
+import { isMarketOpen } from "@/lib/trading/market-hours"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { useTheme } from "next-themes"
 import { useTrading } from "./trading-provider"
@@ -43,8 +43,6 @@ const TIMEFRAMES = [
 
 // How many of the most-recent bars to frame on load; the rest stay scrollable.
 const VISIBLE_CANDLES = 140
-// Bars of synthetic history to generate when the real-candle fetch is empty.
-const SEED_CANDLES = 600
 
 type Candle = OhlcBar
 
@@ -70,7 +68,7 @@ function loadStoredStyle(): ChartStyle {
 }
 
 export function ChartPanel() {
-  const { activeSymbol, marketPrice } = useTrading()
+  const { activeSymbol, marketPrice, quoteTime, quoteLive } = useTrading()
   const isMobile = useIsMobile()
   const { resolvedTheme } = useTheme()
   const asset = getAsset(activeSymbol)
@@ -83,6 +81,8 @@ export function ChartPanel() {
   const [chartStyle, setChartStyle] = useState<ChartStyle>("candles")
   const [indicators, setIndicators] = useState<IndicatorId[]>([])
   const [prefsLoaded, setPrefsLoaded] = useState(false)
+  const [historyStatus, setHistoryStatus] = useState("")
+  const [retry, setRetry] = useState(0)
   const [hoverBar, setHoverBar] = useState<Candle | null>(null)
 
   useEffect(() => {
@@ -308,24 +308,35 @@ export function ChartPanel() {
   }, [])
 
   // ---- Load history when the symbol or timeframe changes. ---------------
-  // Fetches REAL OHLC candles from /api/candles (Yahoo) so the chart matches
-  // the actual market; falls back to the local simulator if the fetch is empty.
   useEffect(() => {
-    if (!seriesRef.current || marketPrice <= 0) return
+    if (!seriesRef.current) return
     const key = `${activeSymbol}:${timeframe}`
     if (seededKeyRef.current === key) return
     seededKeyRef.current = key
 
     let cancelled = false
+    const controller = new AbortController()
+    setHistoryStatus(timeframe < 60 ? "Live ticks only" : "Loading price history…")
+    setHoverBar(null)
 
     // Clear previous data immediately so we don't mix assets, and force auto-scale.
     setSeriesData([])
     chartRef.current?.priceScale("right").applyOptions({ autoScale: true })
     candleRef.current = null
     barsRef.current = []
+    indicatorMgrRef.current?.update([])
 
     const applyHistory = (history: Candle[]) => {
       if (cancelled || !seriesRef.current || seededKeyRef.current !== key) return
+      const last = history[history.length - 1]
+      const lastTime = last?.time ?? 0
+      const live = barsRef.current.find(bar => bar.time === lastTime)
+      if (last && live) {
+        last.high = Math.max(last.high, live.high)
+        last.low = Math.min(last.low, live.low)
+        last.close = live.close
+      }
+      history = [...history, ...barsRef.current.filter(bar => bar.time > lastTime)]
       barsRef.current = history
       setSeriesData(history)
       indicatorMgrRef.current?.update(history)
@@ -343,7 +354,7 @@ export function ChartPanel() {
     const load = async () => {
       try {
         const res = await fetch(
-          `/api/candles?symbol=${encodeURIComponent(activeSymbol)}&tf=${timeframe}`,
+          `/api/candles?symbol=${encodeURIComponent(activeSymbol)}&tf=${timeframe}`, { signal: controller.signal },
         )
         if (!res.ok) throw new Error("Fetch failed")
         const json = (await res.json()) as {
@@ -362,52 +373,19 @@ export function ChartPanel() {
           low: Number(c.low.toFixed(asset.digits)),
           close: Number(c.close.toFixed(asset.digits)),
         }))
-        applyHistory(real)
+        if (!cancelled) { applyHistory(real); setHistoryStatus("") }
       } catch {
-        // Network error or empty history — synthesize a random-walk history
-        // that ends exactly at the current market price so the chart is never
-        // blank and the live tick continues seamlessly from the last bar.
-        // Weekend buckets are skipped for closed markets so no dummy candles
-        // form on Saturday/Sunday (matches how TradingView shows a gap).
-        const category = categoryOf(activeSymbol)
-        const now = Math.floor(Date.now() / 1000)
-        const digits = asset.digits
-        const round = (v: number) => Number(v.toFixed(digits))
-        // Volatility per bar scales gently with the timeframe.
-        const vol = marketPrice * 0.0004 * Math.min(6, Math.max(1, Math.sqrt(timeframe / 60)))
-        const seeded: Candle[] = []
-        let close = marketPrice
-        let bucket = now - (now % timeframe)
-        let guard = SEED_CANDLES * 4 // hard cap on scanned buckets
-        // Walk backwards from the current price so the final candle matches it,
-        // only emitting bars for buckets when the market was actually open.
-        while (seeded.length < SEED_CANDLES && guard-- > 0) {
-          if (isMarketOpenAt(category, bucket)) {
-            const drift = (Math.random() - 0.5) * vol * 2
-            const open = close - drift
-            const high = Math.max(open, close) + Math.random() * vol * 0.6
-            const low = Math.min(open, close) - Math.random() * vol * 0.6
-            seeded.unshift({
-              time: bucket as UTCTimestamp,
-              open: round(open),
-              high: round(high),
-              low: round(low),
-              close: round(close),
-            })
-            close = open
-          }
-          bucket -= timeframe
-        }
-        applyHistory(seeded)
+        if (!cancelled) setHistoryStatus("Price history unavailable")
       }
     }
-    load()
-
+    if (timeframe >= 60) void load()
     return () => {
       cancelled = true
+      controller.abort()
+      seededKeyRef.current = null
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeSymbol, timeframe, marketPrice > 0])
+  }, [activeSymbol, timeframe, retry])
 
   // ---- Live tick: update / roll the current candle. ---------------------
   useEffect(() => {
@@ -415,22 +393,22 @@ export function ChartPanel() {
     if (!series || seededKeyRef.current !== `${activeSymbol}:${timeframe}`) return
 
     // Safety check requested by user to prevent NaN/null spikes
-    const price = Number.parseFloat(marketPrice as any)
-    if (!Number.isFinite(price) || price <= 0) return
+    const price = marketPrice
+    if (!quoteLive || !Number.isFinite(price) || price <= 0) return
 
     // STRICT WEEKEND CHECK: Completely freeze the chart if the market is closed.
     // This stops dummy heartbeat doji candles from forming on lower timeframes.
     if (!isMarketOpen(categoryOf(activeSymbol))) return
 
     const period = periodRef.current
-    const now = Math.floor(Date.now() / 1000)
+    const now = Math.floor(quoteTime / 1000)
     const bucket = (now - (now % period)) as UTCTimestamp
     const cur = candleRef.current
 
     if (!cur || bucket > cur.time) {
       const next: Candle = {
         time: bucket,
-        open: cur ? cur.close : price,
+        open: price,
         high: price,
         low: price,
         close: price,
@@ -452,7 +430,7 @@ export function ChartPanel() {
       }
       updateSeriesBar(cur)
     }
-  }, [marketPrice, activeSymbol, timeframe, updateSeriesBar])
+  }, [marketPrice, quoteLive, quoteTime, activeSymbol, timeframe, updateSeriesBar])
 
   // Legend bar: hovered bar, else the live one.
   const legendBar = hoverBar ?? candleRef.current
@@ -498,6 +476,10 @@ export function ChartPanel() {
         )}
       </div>
 
+      {historyStatus && <div role="status" className="flex items-center justify-between gap-2 border-b border-border px-3 py-1.5 text-xs text-muted-foreground">
+        {historyStatus}
+        {historyStatus === "Price history unavailable" && <button type="button" className="font-medium underline" onClick={() => setRetry(n => n + 1)}>Retry</button>}
+      </div>}
       {/* Chart + interaction overlay */}
       <div className="relative min-h-0 flex-1">
         <div ref={containerRef} className="absolute inset-0 h-full w-full" />

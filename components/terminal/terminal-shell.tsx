@@ -1,13 +1,16 @@
 "use client"
 
 import { ExternalLink, LayoutDashboard, LogOut, RotateCw, Sparkles } from "lucide-react"
+import { lazy, Suspense, useEffect } from "react"
 import { useIsMobileState } from "@/hooks/use-mobile"
 import { signOut } from "@/app/(auth)/actions"
 import { useTradingActions, useTradingState } from "./trading-provider"
-import { CommandPalette } from "./shell/command-palette"
-import { MobileShell } from "./mobile/mobile-shell"
-import { DesktopShell } from "./desktop/desktop-shell"
 import { SITE_URL, TppMark, TppTile } from "./brand"
+
+const loadMobileShell = () => import("./mobile/mobile-shell").then(({ MobileShell }) => ({ default: MobileShell }))
+const loadDesktopShell = () => import("./desktop/desktop-shell").then(({ DesktopShell }) => ({ default: DesktopShell }))
+const MobileShell = lazy(loadMobileShell)
+const DesktopShell = lazy(loadDesktopShell)
 
 /** Signed in, but no trading account yet: point the trader to the dashboard. */
 function NoAccount({ error, onRetry }: { error: string | null; onRetry: () => void }) {
@@ -61,11 +64,11 @@ function NoAccount({ error, onRetry }: { error: string | null; onRetry: () => vo
   )
 }
 
-function Loading() {
+function Loading({ accounts = true }: { accounts?: boolean }) {
   return (
-    <div className="flex min-h-[100dvh] flex-col items-center justify-center gap-4 bg-background">
+    <div role="status" className="flex min-h-[100dvh] flex-col items-center justify-center gap-4 bg-background">
       <TppTile className="h-12 w-12 animate-pulse rounded-[15px]" />
-      <p className="text-[13px] text-muted-foreground">Loading your accounts…</p>
+      <p className="text-[13px] text-muted-foreground">{accounts ? "Loading your accounts…" : "Opening terminal…"}</p>
     </div>
   )
 }
@@ -74,12 +77,17 @@ export function TerminalShell() {
   const isMobile = useIsMobileState()
   const { accounts, accountsLoading, accountsError } = useTradingState()
   const { refreshAccounts } = useTradingActions()
+  useEffect(() => {
+    if (isMobile === undefined) return
+    // Fetch only the active viewport's layout, alongside the authenticated account read.
+    void (isMobile ? loadMobileShell() : loadDesktopShell()).catch(() => {})
+  }, [isMobile])
+
   if (isMobile === undefined || (accountsLoading && accounts.length === 0)) return <Loading />
   if (accounts.length === 0) return <NoAccount error={accountsError} onRetry={() => void refreshAccounts()} />
   return (
-    <>
+    <Suspense fallback={<Loading accounts={false} />}>
       {isMobile ? <MobileShell /> : <DesktopShell />}
-      {!isMobile && <CommandPalette />}
-    </>
+    </Suspense>
   )
 }

@@ -61,6 +61,7 @@ function ChartHeader({ onPickSymbol }: { onPickSymbol: () => void }) {
 
 export function MobileShell() {
   const [tab, setTab] = useState<Tab>("chart")
+  const [visited, setVisited] = useState<ReadonlySet<Tab>>(() => new Set(["chart"]))
   const [manageOpen, setManageOpen] = useState(false)
   const { managePositionId, openPositions, pendingOrders } = useTradingState()
   const { beginManage } = useTradingActions()
@@ -70,17 +71,25 @@ export function MobileShell() {
     if (!managePositionId) setManageOpen(false)
   }, [managePositionId])
 
+  const openTab = (next: Tab) => {
+    // First paint only needs the chart. Retain each visited tab's filters and scroll state.
+    setVisited((current) => current.has(next) ? current : new Set(current).add(next))
+    setTab(next)
+  }
+
   const badge: Partial<Record<Tab, number>> = { trade: openPositions.length + pendingOrders.length }
 
   return (
     <div className="flex h-[100dvh] flex-col overflow-hidden bg-background text-foreground">
       <main className="relative min-h-0 flex-1">
-        <Screen show={tab === "quotes"}>
-          <QuotesScreen onOpenChart={() => setTab("chart")} />
-        </Screen>
+        {visited.has("quotes") && (
+          <Screen show={tab === "quotes"}>
+            <QuotesScreen onOpenChart={() => openTab("chart")} />
+          </Screen>
+        )}
 
         <Screen show={tab === "chart"}>
-          <ChartHeader onPickSymbol={() => setTab("quotes")} />
+          <ChartHeader onPickSymbol={() => openTab("quotes")} />
           <div className="min-h-0 flex-1">
             <ChartPanel />
           </div>
@@ -89,23 +98,29 @@ export function MobileShell() {
           </div>
         </Screen>
 
-        <Screen show={tab === "trade"}>
-          <TradeScreen
-            onOpenChart={() => setTab("chart")}
-            onModify={(id) => {
-              beginManage(id)
-              setManageOpen(true)
-            }}
-          />
-        </Screen>
+        {visited.has("trade") && (
+          <Screen show={tab === "trade"}>
+            <TradeScreen
+              onOpenChart={() => openTab("chart")}
+              onModify={(id) => {
+                beginManage(id)
+                setManageOpen(true)
+              }}
+            />
+          </Screen>
+        )}
 
-        <Screen show={tab === "history"}>
-          <HistoryScreen />
-        </Screen>
+        {visited.has("history") && (
+          <Screen show={tab === "history"}>
+            <HistoryScreen />
+          </Screen>
+        )}
 
-        <Screen show={tab === "account"}>
-          <AccountScreen />
-        </Screen>
+        {visited.has("account") && (
+          <Screen show={tab === "account"}>
+            <AccountScreen />
+          </Screen>
+        )}
 
         {manageOpen && managePositionId ? (
           <div className="absolute inset-0 z-40 flex flex-col bg-background pt-[env(safe-area-inset-top)] animate-in slide-in-from-bottom-6 fade-in-0 duration-200">
@@ -126,7 +141,7 @@ export function MobileShell() {
               type="button"
               onClick={() => {
                 setManageOpen(false)
-                setTab(key)
+                openTab(key)
               }}
               aria-current={on ? "page" : undefined}
               className={cn("relative flex flex-col items-center gap-[3px] pt-2 pb-1.5 text-[10.5px] font-semibold transition-colors", on ? "text-foreground" : "text-muted-foreground")}

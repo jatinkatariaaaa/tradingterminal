@@ -3,6 +3,11 @@ import { createServerClient } from "@supabase/ssr"
 
 // Routes reachable without a session. Everything else requires authentication.
 const PUBLIC_PATHS = ["/login", "/signup", "/api/admin", "/api/health"]
+// These routes validate and refresh the session through requireUser().
+const AUTHENTICATED_TRADE_ROUTES = new Set(
+  ["open", "place-order", "close", "partial-close", "modify", "cancel", "modify-order"]
+    .map((route) => `/api/trade/${route}`),
+)
 
 function isPublicPath(pathname: string): boolean {
   return PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`))
@@ -18,6 +23,7 @@ function isPublicPath(pathname: string): boolean {
  */
 export async function updateSession(request: NextRequest) {
   let response = NextResponse.next({ request })
+  if (AUTHENTICATED_TRADE_ROUTES.has(request.nextUrl.pathname)) return response
 
   // Unlisted educational replays render the same page for visitors and signed-in traders.
   if (request.nextUrl.pathname.startsWith("/replay/")) return response

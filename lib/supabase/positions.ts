@@ -11,7 +11,7 @@ interface PositionRow {
   swap: number; margin: number; open_time: string
 }
 
-function mapPosition(r: PositionRow): ServerPosition {
+export function mapPosition(r: PositionRow): ServerPosition {
   return {
     id: r.id, accountId: r.account_id, symbol: r.symbol, direction: r.direction,
     volume: Number(r.volume), openPrice: Number(r.open_price),
@@ -46,7 +46,7 @@ interface OrderRow {
   cancelled_at: string | null
 }
 
-function mapOrder(r: OrderRow): ServerOrder {
+export function mapOrder(r: OrderRow): ServerOrder {
   return {
     id: r.id, accountId: r.account_id, symbol: r.symbol, direction: r.direction,
     kind: r.kind, status: r.status, volume: Number(r.volume),

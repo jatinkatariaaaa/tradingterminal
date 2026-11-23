@@ -1,76 +1,58 @@
 "use client"
 
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { createSupabaseBrowserClient } from "@/lib/supabase/client"
 import { fetchMyAccounts } from "@/lib/supabase/accounts"
 import type { ServerAccount } from "@/lib/trading/account"
 
-interface UseServerAccounts {
-  accounts: ServerAccount[]
-  loading: boolean
-  /** Null until a load has been attempted; set when the user is signed out or a query fails. */
-  error: string | null
-  /** True once we know there is no authenticated session. */
-  signedOut: boolean
-  refresh: () => Promise<void>
-}
-
-/**
- * Read-only loader for the signed-in user's server-authoritative accounts.
- *
- * Step 1 deliberately does NOT touch the live risk math in TradingProvider — it
- * only surfaces what the server says, so the two can be compared before any
- * client logic is removed. Reconnects on auth state changes so a sign-in /
- * sign-out is reflected without a manual refresh.
- */
-export function useServerAccounts(): UseServerAccounts {
+export function useServerAccounts() {
   const [accounts, setAccounts] = useState<ServerAccount[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [signedOut, setSignedOut] = useState(false)
+  const sequence = useRef(0)
 
   const load = useCallback(async () => {
-    setLoading(true)
+    const request = ++sequence.current
     setError(null)
     try {
       const supabase = createSupabaseBrowserClient()
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) {
-        setSignedOut(true)
-        setAccounts([])
-        return
-      }
-      setSignedOut(false)
-      
-      // Accounts are issued by The People Prop after a purchase; the terminal never creates one.
-      const list = await fetchMyAccounts(supabase)
+      // RLS authorizes the account read. Session presence is only a UI hint.
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+      if (sessionError) throw sessionError
+      const list = session ? await fetchMyAccounts(supabase) : []
+      if (sequence.current !== request) return
+      setSignedOut(!session)
       setAccounts(list)
-    } catch (e: any) {
-      console.error("[useServerAccounts] Error in load callback:", e?.message || e?.details || e)
-      setError(e?.message || "Failed to load accounts")
-      setAccounts([])
+    } catch (cause) {
+      if (sequence.current === request) {
+        setError(cause instanceof Error ? cause.message : "Failed to load accounts")
+      }
     } finally {
-      setLoading(false)
+      if (sequence.current === request) setLoading(false)
     }
   }, [])
 
   useEffect(() => {
-    let active = true
-    void load()
-    // Refresh whenever auth state changes (sign-in/out/token refresh).
-    let unsub: (() => void) | undefined
-    try {
-      const supabase = createSupabaseBrowserClient()
-      const { data } = supabase.auth.onAuthStateChange(() => {
-        if (active) void load()
-      })
-      unsub = () => data.subscription.unsubscribe()
-    } catch {
-      // Env not configured yet — leave the error from load() in place.
-    }
+    let timer: number | undefined
+    const { data } = createSupabaseBrowserClient().auth.onAuthStateChange((event, session) => {
+      if (event === "TOKEN_REFRESHED") return
+      window.clearTimeout(timer)
+      ++sequence.current
+      if (!session) {
+        setAccounts([])
+        setSignedOut(true)
+        setLoading(false)
+        return
+      }
+      setSignedOut(false)
+      // Let Supabase finish its auth callback before making any Supabase request.
+      timer = window.setTimeout(() => void load(), 0)
+    })
     return () => {
-      active = false
-      unsub?.()
+      window.clearTimeout(timer)
+      data.subscription.unsubscribe()
+      ++sequence.current
     }
   }, [load])
 

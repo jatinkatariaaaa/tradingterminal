@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { requireUser } from "../_auth"
+import { positionError } from "../_position-error"
 import { createSupabaseServiceClient } from "@/lib/supabase/service"
 
 /** Update SL/TP on an owned position. NULL clears the level. */
@@ -24,6 +25,6 @@ export async function POST(request: Request) {
     p_stop_loss: body.stopLoss ?? null,
     p_take_profit: body.takeProfit ?? null,
   })
-  if (error) return NextResponse.json({ error: error.message }, { status: 422 })
+  if (error) return positionError(error.message, body.positionId)
   return NextResponse.json({ position: data })
 }

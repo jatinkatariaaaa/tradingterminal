@@ -316,7 +316,7 @@ export function ChartPanel() {
     if (seededKeyRef.current === key) return
     seededKeyRef.current = key
 
-    let cancelled = false
+    const controller = new AbortController()
 
     // Clear previous data immediately so we don't mix assets, and force auto-scale.
     setSeriesData([])
@@ -325,7 +325,7 @@ export function ChartPanel() {
     barsRef.current = []
 
     const applyHistory = (history: Candle[]) => {
-      if (cancelled || !seriesRef.current || seededKeyRef.current !== key) return
+      if (controller.signal.aborted || !seriesRef.current || seededKeyRef.current !== key) return
       barsRef.current = history
       setSeriesData(history)
       indicatorMgrRef.current?.update(history)
@@ -344,6 +344,7 @@ export function ChartPanel() {
       try {
         const res = await fetch(
           `/api/candles?symbol=${encodeURIComponent(activeSymbol)}&tf=${timeframe}`,
+          { signal: controller.signal },
         )
         if (!res.ok) throw new Error("Fetch failed")
         const json = (await res.json()) as {
@@ -364,6 +365,7 @@ export function ChartPanel() {
         }))
         applyHistory(real)
       } catch {
+        if (controller.signal.aborted) return
         // Network error or empty history — synthesize a random-walk history
         // that ends exactly at the current market price so the chart is never
         // blank and the live tick continues seamlessly from the last bar.
@@ -404,7 +406,7 @@ export function ChartPanel() {
     load()
 
     return () => {
-      cancelled = true
+      controller.abort()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeSymbol, timeframe, marketPrice > 0])

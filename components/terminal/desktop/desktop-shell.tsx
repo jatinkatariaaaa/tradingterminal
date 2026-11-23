@@ -5,6 +5,7 @@ import type { ImperativePanelHandle } from "react-resizable-panels"
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable"
 import { useTradingState } from "../trading-provider"
 import { TopBar } from "../shell/top-bar"
+import { CommandPalette } from "../shell/command-palette"
 import { useHotkeys } from "../shell/use-hotkeys"
 import { MarketWatch } from "../market-watch"
 import { ChartPanel } from "../chart-panel"
@@ -102,6 +103,7 @@ export function DesktopShell() {
       </div>
       <StatusBar />
       <ShortcutsDialog />
+      <CommandPalette />
     </div>
   )
 }

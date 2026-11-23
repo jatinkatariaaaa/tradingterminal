@@ -1,86 +1,111 @@
 "use client"
 
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { createSupabaseBrowserClient } from "@/lib/supabase/client"
 import { fetchPositions, fetchWorkingOrders, fetchTrades } from "@/lib/supabase/positions"
 import type { ServerPosition, ServerOrder, ServerTrade } from "@/lib/trading/orders"
 
-interface ServerPortfolio {
+type Portfolio = {
   positions: ServerPosition[]
   orders: ServerOrder[]
   trades: ServerTrade[]
-  loading: boolean
-  error: string | null
-  refresh: () => Promise<void>
 }
 
-/**
- * READ-ONLY live portfolio for a single account, kept in sync with the server
- * via Supabase Realtime. Step 3b only — this does NOT replace TradingProvider; it
- * is a parallel read path the Step 3c cutover will build on. Any change the
- * worker or the /api/trade routes make to positions/orders/trades is reflected
- * here within the Realtime latency, no polling required.
- */
-export function useServerPortfolio(accountId: string | null): ServerPortfolio {
-  const [positions, setPositions] = useState<ServerPosition[]>([])
-  const [orders, setOrders] = useState<ServerOrder[]>([])
-  const [trades, setTrades] = useState<ServerTrade[]>([])
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+const empty: Portfolio = { positions: [], orders: [], trades: [] }
+const fetchers = { positions: fetchPositions, orders: fetchWorkingOrders, trades: fetchTrades }
 
-  const load = useCallback(async () => {
-    if (!accountId) {
-      setPositions([]); setOrders([]); setTrades([])
-      return
-    }
-    setLoading(true)
-    setError(null)
+export function useServerPortfolio(accountId: string | null) {
+  const scope = useMemo(() => ({
+    accountId,
+    active: false,
+    version: { positions: 0, orders: 0, trades: 0 },
+  }), [accountId])
+  const [snapshot, setSnapshot] = useState<{ scope: typeof scope; data: Portfolio }>()
+  const patch = useCallback(<K extends keyof Portfolio>(key: K, update: (rows: Portfolio[K]) => Portfolio[K]) => {
+    if (!scope.active) return
+    setSnapshot((prev) => {
+      if (!scope.active) return prev
+      const data = prev?.scope === scope ? prev.data : empty
+      return { scope, data: { ...data, [key]: update(data[key]) } }
+    })
+  }, [scope])
+
+  const load = useCallback(async <K extends keyof Portfolio>(key: K) => {
+    if (!scope.active || !scope.accountId) return
+    const version = ++scope.version[key]
     try {
-      const supabase = createSupabaseBrowserClient()
-      const [p, o, t] = await Promise.all([
-        fetchPositions(supabase, accountId),
-        fetchWorkingOrders(supabase, accountId),
-        fetchTrades(supabase, accountId),
-      ])
-      setPositions(p); setOrders(o); setTrades(t)
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to load portfolio")
-    } finally {
-      setLoading(false)
+      const rows = await fetchers[key](createSupabaseBrowserClient(), scope.accountId) as Portfolio[K]
+      if (scope.version[key] === version) patch(key, () => rows)
+    } catch {
+      // Keep the last confirmed data. A failed history request can't block open positions.
     }
-  }, [accountId])
+  }, [patch, scope])
+
+  const refresh = useCallback(async () => {
+    await Promise.all([load("positions"), load("orders"), load("trades")])
+  }, [load])
+
+  const removePosition = useCallback((id: string) => {
+    ++scope.version.positions
+    patch("positions", (rows) => rows.filter((row) => row.id !== id))
+  }, [patch, scope])
+
+  const acceptPosition = useCallback((row: ServerPosition) => {
+    if (row.accountId !== scope.accountId) return
+    ++scope.version.positions
+    patch("positions", (rows) => [row, ...rows.filter((old) => old.id !== row.id)])
+  }, [patch, scope])
+
+  const acceptOrder = useCallback((row: ServerOrder) => {
+    if (row.accountId !== scope.accountId) return
+    ++scope.version.orders
+    patch("orders", (rows) => [row, ...rows.filter((old) => old.id !== row.id)])
+  }, [patch, scope])
 
   useEffect(() => {
     if (!accountId) return
-    void load()
-
+    scope.active = true
+    void refresh()
     const supabase = createSupabaseBrowserClient()
-    // One channel for all three tables, filtered to this account. On any change
-    // we reload the affected slice; the payloads are small so a targeted refetch
-    // keeps the mapping logic in one place (lib/supabase/positions.ts).
-    const channel = supabase
-      .channel(`portfolio:${accountId}`)
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "positions", filter: `account_id=eq.${accountId}` },
-        () => void fetchPositions(supabase, accountId).then(setPositions).catch(() => {}),
-      )
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "orders", filter: `account_id=eq.${accountId}` },
-        () => void fetchWorkingOrders(supabase, accountId).then(setOrders).catch(() => {}),
-      )
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "trades", filter: `account_id=eq.${accountId}` },
-        () => void fetchTrades(supabase, accountId).then(setTrades).catch(() => {}),
-      )
-      .subscribe()
+    const filter = `account_id=eq.${accountId}`
+    const channel = supabase.channel(`portfolio:${accountId}`)
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "positions", filter }, () => void load("positions"))
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "positions", filter }, () => void load("positions"))
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "orders", filter }, () => void load("orders"))
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "orders", filter }, () => {
+        void load("orders")
+        void load("positions")
+      })
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "trades", filter }, () => void refresh())
+      .subscribe((status) => { if (status === "SUBSCRIBED") void refresh() })
+
+    // Reconcile worker closes even on projects without Realtime publications.
+    // Scroll/chart activity doesn't affect the cadence, and hidden tabs make no polling requests.
+    let polling = false
+    let ticks = 0
+    const timer = window.setInterval(async () => {
+      if (document.hidden || polling) return
+      polling = true
+      try {
+        if (++ticks % 4 === 0) await refresh()
+        else await Promise.all([load("positions"), load("orders")])
+      } finally {
+        polling = false
+      }
+    }, 6000)
+    const resume = () => { if (!document.hidden) void refresh() }
+    document.addEventListener("visibilitychange", resume)
+    window.addEventListener("online", resume)
 
     return () => {
+      scope.active = false
+      for (const key of ["positions", "orders", "trades"] as const) ++scope.version[key]
+      window.clearInterval(timer)
+      document.removeEventListener("visibilitychange", resume)
+      window.removeEventListener("online", resume)
       void supabase.removeChannel(channel)
     }
-  }, [accountId, load])
+  }, [accountId, load, refresh, scope])
 
-  return { positions, orders, trades, loading, error, refresh: load }
+  return { ...(snapshot?.scope === scope ? snapshot.data : empty), refresh, removePosition, acceptPosition, acceptOrder }
 }

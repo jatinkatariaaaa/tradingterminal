@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { requireUser } from "../_auth"
+import { positionError } from "../_position-error"
 import { createSupabaseServiceClient } from "@/lib/supabase/service"
 import { categoryOf } from "@/lib/trading/category"
 
@@ -28,6 +29,6 @@ export async function POST(request: Request) {
     p_position_id: body.positionId,
     p_category: categoryOf(body.symbol),
   })
-  if (error) return NextResponse.json({ error: error.message }, { status: 422 })
+  if (error) return positionError(error.message, body.positionId)
   return NextResponse.json({ trade: data })
 }

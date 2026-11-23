@@ -31,6 +31,7 @@ import type {
   OpenPosition,
   OrderType,
 } from "@/lib/trading/types"
+import { mapOrder, mapPosition } from "@/lib/supabase/positions"
 import { useServerPortfolio } from "@/hooks/use-server-portfolio"
 import { useServerAccounts } from "@/hooks/use-server-accounts"
 import { toOpenPosition, toPendingOrder, toClosedTrade, toAccountState } from "@/lib/trading/server-adapters"
@@ -375,8 +376,10 @@ export function TradingProvider({ children, initialAccountId }: TradingProviderP
   }, [serverAccounts, accountsLoading, accountId])
 
   // ---- Server-authoritative state via Realtime ----
-  const { positions: serverPositions, orders: serverOrders, trades: serverTrades, refresh: refreshPortfolio } =
-    useServerPortfolio(accountId)
+  const {
+    positions: serverPositions, orders: serverOrders, trades: serverTrades,
+    refresh: refreshPortfolio, removePosition, acceptPosition, acceptOrder,
+  } = useServerPortfolio(accountId)
 
   // Adapt server types → client types so all downstream components work unchanged.
   const openPositions = useMemo(
@@ -630,8 +633,8 @@ export function TradingProvider({ children, initialAccountId }: TradingProviderP
           return { ok: false, reason: data.error ?? "Order rejected by server." }
         }
         
-        // Immediately refresh state for instant feedback.
-        await refreshPortfolio()
+        if (data.position?.id) acceptPosition(mapPosition(data.position))
+        void refreshPortfolio()
         
         // Construct the fill result from the API response.
         const entryFill = openFillPrice(draft.direction, mid, spread)
@@ -673,8 +676,8 @@ export function TradingProvider({ children, initialAccountId }: TradingProviderP
         return { ok: false, reason: data.error ?? "Order rejected by server." }
       }
       
-      // Immediately refresh state for instant feedback.
-      await refreshPortfolio()
+      if (data.order?.id) acceptOrder(mapOrder(data.order))
+      void refreshPortfolio()
       
       setDraftState((prev) => ({ ...prev, slEnabled: false, tpEnabled: false }))
       const pendingFill = openFillPrice(draft.direction, draft.triggerPrice, spreadOf(asset, draft.triggerPrice))
@@ -697,7 +700,13 @@ export function TradingProvider({ children, initialAccountId }: TradingProviderP
       setIsSubmitting(false)
       return { ok: false, reason: msg }
     }
-  }, [isSubmitting, refreshPortfolio])
+  }, [isSubmitting, refreshPortfolio, acceptPosition, acceptOrder])
+
+  const reconcileClosedPosition = useCallback((id: string) => {
+    removePosition(id)
+    void refreshPortfolio()
+    toast({ title: "Position no longer open", description: "Check History for the completed trade." })
+  }, [refreshPortfolio, removePosition, toast])
 
   const closePosition = useCallback(async (id: string) => {
     const positions = openPositionsRef.current
@@ -713,6 +722,10 @@ export function TradingProvider({ children, initialAccountId }: TradingProviderP
       })
       if (!res.ok) {
         const data = await res.json()
+        if (res.status === 404 && data.code === "POSITION_NOT_OPEN") {
+          reconcileClosedPosition(id)
+          return
+        }
         const err = data.error ?? "Failed to close position."
         setLastError(err)
         toast({
@@ -725,7 +738,8 @@ export function TradingProvider({ children, initialAccountId }: TradingProviderP
           title: "Position Closed",
           description: `Closed ${target.volume} lots of ${target.symbol} at market.`,
         })
-        await refreshPortfolio()
+        removePosition(id)
+        void refreshPortfolio()
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Network error."
@@ -738,7 +752,7 @@ export function TradingProvider({ children, initialAccountId }: TradingProviderP
     } finally {
       setIsSubmitting(false)
     }
-  }, [refreshPortfolio, toast])
+  }, [refreshPortfolio, reconcileClosedPosition, removePosition, toast])
 
   const partialClose = useCallback(async (id: string, closeVolume: number) => {
     const positions = openPositionsRef.current
@@ -758,6 +772,10 @@ export function TradingProvider({ children, initialAccountId }: TradingProviderP
       })
       if (!res.ok) {
         const data = await res.json()
+        if (res.status === 404 && data.code === "POSITION_NOT_OPEN") {
+          reconcileClosedPosition(id)
+          return
+        }
         const err = data.error ?? "Failed to partially close position."
         setLastError(err)
         toast({
@@ -770,7 +788,7 @@ export function TradingProvider({ children, initialAccountId }: TradingProviderP
           title: "Partial Close Executed",
           description: `Closed ${closeVolume} lots of ${target.symbol} at market.`,
         })
-        await refreshPortfolio()
+        void refreshPortfolio()
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Network error."
@@ -783,7 +801,7 @@ export function TradingProvider({ children, initialAccountId }: TradingProviderP
     } finally {
       setIsSubmitting(false)
     }
-  }, [closePosition, refreshPortfolio, toast])
+  }, [closePosition, refreshPortfolio, reconcileClosedPosition, toast])
 
   const modifyPosition = useCallback(
     async (id: string, stopLoss: number | null, takeProfit: number | null) => {
@@ -797,6 +815,10 @@ export function TradingProvider({ children, initialAccountId }: TradingProviderP
         })
         if (!res.ok) {
           const data = await res.json()
+          if (res.status === 404 && data.code === "POSITION_NOT_OPEN") {
+            reconcileClosedPosition(id)
+            return
+          }
           const err = data.error ?? "Failed to modify position."
           setLastError(err)
           toast({
@@ -805,11 +827,13 @@ export function TradingProvider({ children, initialAccountId }: TradingProviderP
             variant: "destructive",
           })
         } else {
+          const data = await res.json()
+          if (data.position?.id) acceptPosition(mapPosition(data.position))
           toast({
             title: "SL/TP Modified",
             description: "Successfully updated stop loss and take profit levels.",
           })
-          await refreshPortfolio()
+          void refreshPortfolio()
         }
       } catch (err) {
         const msg = err instanceof Error ? err.message : "Network error."
@@ -823,7 +847,7 @@ export function TradingProvider({ children, initialAccountId }: TradingProviderP
         setIsSubmitting(false)
       }
     },
-    [refreshPortfolio, toast],
+    [refreshPortfolio, reconcileClosedPosition, acceptPosition, toast],
   )
 
   const closeAllPositions = useCallback(async () => {
@@ -841,13 +865,22 @@ export function TradingProvider({ children, initialAccountId }: TradingProviderP
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ positionId: p.id, symbol: p.symbol }),
             })
-            return { ok: res.ok, symbol: p.symbol }
+            if (res.ok) {
+              removePosition(p.id)
+              return true
+            }
+            const data = await res.json()
+            if (res.status === 404 && data.code === "POSITION_NOT_OPEN") {
+              removePosition(p.id)
+              return true
+            }
+            return false
           } catch {
-            return { ok: false, symbol: p.symbol }
+            return false
           }
         }),
       )
-      const failures = results.filter((r) => !r.ok)
+      const failures = results.filter((resolved) => !resolved)
       if (failures.length > 0) {
         const msg = `${failures.length} of ${positions.length} positions failed to close.`
         setLastError(msg)
@@ -859,10 +892,10 @@ export function TradingProvider({ children, initialAccountId }: TradingProviderP
       } else {
         toast({
           title: "All Positions Closed",
-          description: `Successfully closed all ${positions.length} open positions.`,
+          description: "None of the selected positions are open. Check History for each result.",
         })
       }
-      await refreshPortfolio()
+      void refreshPortfolio()
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Network error."
       setLastError(msg)
@@ -874,7 +907,7 @@ export function TradingProvider({ children, initialAccountId }: TradingProviderP
     } finally {
       setIsSubmitting(false)
     }
-  }, [refreshPortfolio, toast])
+  }, [refreshPortfolio, removePosition, toast])
 
   const cancelPending = useCallback(async (id: string) => {
     setIsSubmitting(true)

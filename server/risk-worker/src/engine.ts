@@ -358,7 +358,6 @@ export class RiskEngine {
   }
 
   private async cycle(now: number): Promise<void> {
-    const prices = this.duePrices(now)
     const candidates: { a: AccountRow; equity: number; forced: boolean }[] = []
     for (const a of this.accounts.values()) {
       if (this.stale.has(a.id)) continue
@@ -368,10 +367,12 @@ export class RiskEngine {
       const forced = this.forced.has(a.id)
       if (forced || this.needsWrite(a.id, equity)) candidates.push({ a, equity, forced })
     }
-    // Writes are batched: equity goes out every persistMs, or with anything else this cycle already writes
-    // (a due price, a forced tick), so the cycle commits once. Otherwise the cycle is a read-only snapshot.
-    const writing =
-      this.backlog || prices.length > 0 || candidates.some((c) => c.forced) || now - this.lastWriteAt >= this.cfg.persistMs
+    // Writes are batched into one transaction every persistMs (at once for a forced tick): the equity of every
+    // account whose stored value would change and every price that is due. Any other cycle is a read-only
+    // snapshot. Prices only go out on these cycles: each symbol's own publish timer would otherwise make
+    // almost every cycle a write cycle.
+    const writing = this.backlog || candidates.some((c) => c.forced) || now - this.lastWriteAt >= this.cfg.persistMs
+    const prices = writing ? this.duePrices(now) : []
     candidates.sort((x, y) => Number(y.forced) - Number(x.forced))
     const ticks: CycleTick[] = []
     for (const c of candidates) {

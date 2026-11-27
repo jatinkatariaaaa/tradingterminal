@@ -1,323 +1,76 @@
-// Risk worker entrypoint (Phase 3, Step 3a skeleton).
+// Risk worker entrypoint.
 //
-// Each tick, for every tradable account:
-//   1. Fill any working pending order whose trigger has been crossed.
-//   2. Apply SL/TP closes on open positions.
-//   3. Recompute equity on the CLOSE side of the spread.
-//   4. On a drawdown breach: force-close all positions (reason 'breach') then
-//      freeze + audit via apply_risk_tick. Otherwise apply_risk_tick handles the
-//      5pm ET daily rollover, highwater, and profit-target detection.
-//
-// This is a SKELETON: it wires real ingestion + the SECURITY DEFINER writes, but
-// does NOT touch the client. The browser TradingProvider keeps running until the
-// Step 3b cutover. Pending-order fill and SL/TP detection mirror the client's
-// logic; review carefully before relying on it in production.
+// RISK_ENGINE=v4 (default): risk engine v4 (src/engine.ts). The same rules as before, marked in memory on
+//   every tick; the database gets one risk_cycle request per cycle plus the trading events themselves.
+// RISK_ENGINE=legacy: the loop as it ran before engine v4 (src/legacy.ts). Also used automatically when the
+//   database does not have risk_cycle yet, so the worker can be deployed before or after the migration.
 
 import "./preload.js"
-import { ASSET_MAP, getPrice, getPrices, startIngestion } from "./prices.js"
+import { getPrice, getPrices, realPriceReceived, startIngestion } from "./prices.js"
 import { startWsServer } from "./ws-server.js"
-import { publishPrices } from "./publish-prices.js"
-import {
-  fetchTradableAccounts,
-  fetchAllPositions,
-  fetchAllWorkingOrders,
-  fetchAccountSnapshot,
-  rpcApplyRiskTick,
-  rpcBreachAccount,
-  rpcPassAccount,
-  rpcClosePosition,
-  rpcFillOrder,
-  type AccountRow,
-  type BreachMark,
-  type OrderRow,
-  type PositionRow,
-} from "./db.js"
-import {
-  closeFillPrice,
-  commissionFor,
-  computeEquity,
-  grossPnlUsd,
-  marginRequired,
-  markPosition,
-  openFillPrice,
-  spreadOf,
-} from "./valuation.js"
+import { liveDb } from "./db.js"
+import { postCrmWebhook } from "./crm.js"
+import { LegacyEngine } from "./legacy.js"
+import { configFromEnv, MissingCycleRpc, RiskEngine } from "./engine.js"
+import type { PriceFeed } from "./types.js"
 
 const TICK_MS = Number(process.env.RISK_TICK_MS ?? "500")
 const FX_POLL_MS = Number(process.env.FINNHUB_POLL_MS ?? process.env.FX_POLL_MS ?? "15000")
-const CRM_WEBHOOK_URL = process.env.CRM_WEBHOOK_URL || "https://thepeopleprop.live/api/terminal-webhook"
+const MODE = (process.env.RISK_ENGINE ?? "v4").toLowerCase()
 
-type CrmAccountStatus = "passed" | "breached"
-
-async function postCrmWebhook(payload: {
-  login: string
-  terminal_account_id: string
-  current_balance: number
-  current_equity: number
-  status: CrmAccountStatus
-}): Promise<void> {
-  const headers: Record<string, string> = { "Content-Type": "application/json" }
-  const secret = process.env.TERMINAL_WEBHOOK_SECRET || process.env.CRM_WEBHOOK_SECRET
-  if (secret) headers.Authorization = `Bearer ${secret}`
-
-  const controller = new AbortController()
-  const timeoutId = setTimeout(() => controller.abort(), 8000)
-
-  try {
-    const response = await fetch(CRM_WEBHOOK_URL, {
-      method: "POST",
-      headers,
-      body: JSON.stringify(payload),
-      signal: controller.signal,
-    })
-
-    if (!response.ok) {
-      const details = await response.text().catch(() => "")
-      console.error(`[crm-webhook] ${payload.status} notification failed: ${response.status} ${details}`)
-    }
-  } catch (err) {
-    console.error("[crm-webhook] notification error:", (err as Error).message)
-  } finally {
-    clearTimeout(timeoutId)
-  }
+const feed: PriceFeed = {
+  get: getPrice,
+  all: getPrices,
+  isReal: (symbol) => realPriceReceived.has(symbol),
 }
 
-/** SL/TP exit level for a position given the live mid, or null if untouched. */
-function slTpExit(p: PositionRow, mid: number): { exit: number; reason: "tp" | "sl" } | null {
-  if (p.direction === "buy") {
-    if (p.take_profit != null && mid >= p.take_profit) return { exit: p.take_profit, reason: "tp" }
-    if (p.stop_loss != null && mid <= p.stop_loss) return { exit: p.stop_loss, reason: "sl" }
-  } else {
-    if (p.take_profit != null && mid <= p.take_profit) return { exit: p.take_profit, reason: "tp" }
-    if (p.stop_loss != null && mid >= p.stop_loss) return { exit: p.stop_loss, reason: "sl" }
-  }
-  return null
-}
-
-async function tickAccount(
-  accountId: string,
-  account: AccountRow,
-  positions: PositionRow[],
-  orders: OrderRow[]
-): Promise<void> {
-  const balance = account.balance
-  const prices = getPrices()
-
-  // 1) Fill triggered pending orders (genuine cross from the placed side).
-  for (const o of orders) {
-    const price = getPrice(o.symbol)
-    const asset = ASSET_MAP[o.symbol]
-    if (price == null || !asset) continue
-    const t = o.trigger_price
-    const ref = o.placed_price
-    const hit =
-      (o.kind === "limit" && o.direction === "buy" && ref > t && price <= t) ||
-      (o.kind === "limit" && o.direction === "sell" && ref < t && price >= t) ||
-      (o.kind === "stop" && o.direction === "buy" && ref < t && price >= t) ||
-      (o.kind === "stop" && o.direction === "sell" && ref > t && price <= t)
-    if (!hit) continue
-    const spread = spreadOf(asset, t)
-    const entryFill = openFillPrice(o.direction, t, spread)
-    const margin = marginRequired(asset, o.volume, entryFill, prices, Number(account.leverage) || 100)
-    try {
-      // fill_order is atomic and idempotent: it locks the order FOR UPDATE and
-      // no-ops unless still 'working', so an order can NEVER open more than one
-      // position even if ticks overlap. SL/TP carry over from the order itself.
-      await rpcFillOrder({
-        orderId: o.id,
-        entryFill,
-        contractSize: asset.contractSize,
-        digits: asset.digits,
-        margin,
-        commission: commissionFor(o.volume),
-      })
-    } catch (err) {
-      // Unexpected DB error — leave the order working for a later tick.
-      console.warn(`[order ${o.id}] fill skipped:`, (err as Error).message)
-    }
-  }
-
-  // 2) SL/TP closes.
-  const survivors: PositionRow[] = []
-  for (const p of positions) {
-    const mid = getPrice(p.symbol)
-    if (mid == null) {
-      survivors.push(p)
-      continue
-    }
-    const hit = slTpExit(p, mid)
-    if (!hit) {
-      survivors.push(p)
-      continue
-    }
-    const pos = { symbol: p.symbol, direction: p.direction, volume: p.volume, openPrice: p.open_price, contractSize: p.contract_size }
-    const gross = grossPnlUsd(pos, hit.exit, prices)
-    await rpcClosePosition({
-      positionId: p.id,
-      exitFill: hit.exit,
-      grossPnl: gross,
-      commission: commissionFor(p.volume),
-      reason: hit.reason,
-    })
-  }
-
-  // 3) Equity on the close side from the survivors.
-  const valued = survivors.map((p) => ({
-    symbol: p.symbol,
-    direction: p.direction,
-    volume: p.volume,
-    openPrice: p.open_price,
-    contractSize: p.contract_size,
-  }))
-  const equity = computeEquity(balance, valued, prices)
-
-  // 4) Breach check. The worker owns the close-side equity, so it decides the
-  // breach here and calls breach_account ONCE — which closes every position at
-  // the supplied marks, freezes, and audits atomically (no freeze-then-loop
-  // window). Non-breach bookkeeping (equity/highwater, 5pm ET rollover, profit
-  // target) stays in apply_risk_tick.
-  const floor = breachFloor(account)
-  if (floor && equity <= floor.level) {
-    const marks: BreachMark[] = []
-    for (const p of survivors) {
-      const m = markPosition(
-        { symbol: p.symbol, direction: p.direction, volume: p.volume, openPrice: p.open_price, contractSize: p.contract_size },
-        prices,
-      )
-      if (!m) continue // no live price — SQL closes it flat at open price
-      marks.push({ position_id: p.id, exit_fill: m.exitFill, gross_pnl: m.grossPnl, commission: m.commission })
-    }
-
-    // Atomically close all positions and mark as breached
-    await rpcBreachAccount({
-      accountId,
-      equity,
-      kind: floor.kind,
-      reason: floor.reason(equity),
-      marks,
-    })
-
-    const breachedAccount = await fetchAccountSnapshot(accountId)
-    await postCrmWebhook({
-      login: accountId,
-      terminal_account_id: accountId,
-      current_balance: breachedAccount.balance,
-      current_equity: breachedAccount.equity,
-      status: "breached",
-    })
-
-    return
-  }
-
-  // No breach: let SQL update equity/highwater, roll the 5pm ET daily baseline,
-  // and detect the profit target.
-  const oldStatus = account.status
-  const newStatus = await rpcApplyRiskTick(accountId, equity)
-
-  if (oldStatus !== "passed" && newStatus === "passed") {
-    const marks: BreachMark[] = []
-    for (const p of survivors) {
-      const m = markPosition(
-        { symbol: p.symbol, direction: p.direction, volume: p.volume, openPrice: p.open_price, contractSize: p.contract_size },
-        prices,
-      )
-      if (!m) continue
-      marks.push({ position_id: p.id, exit_fill: m.exitFill, gross_pnl: m.grossPnl, commission: m.commission })
-    }
-
-    // Atomically close all positions and lock equity=balance
-    const passedAccount = await rpcPassAccount({
-      accountId,
-      equity,
-      marks,
-    })
-
-    await postCrmWebhook({
-      login: accountId,
-      terminal_account_id: accountId,
-      current_balance: passedAccount.balance,
-      current_equity: passedAccount.equity,
-      status: "passed",
-    })
-  }
-}
-
-/**
- * The breach floor an account's equity has crossed, if any. Mirrors the SQL in
- * apply_risk_tick so the worker can decide before calling breach_account.
- * The higher floor wins, so a 5% daily limit breaches before a 10% overall
- * limit on a normal account.
- */
-function breachFloor(
-  a: AccountRow,
-): { level: number; kind: "daily_breach" | "overall_breach"; reason: (eq: number) => string } | null {
-  const overall = a.starting_balance * (1 - a.max_overall_drawdown)
-  const daily = a.daily_start_balance * (1 - a.max_daily_drawdown)
-  // Return the higher (closer) floor's identity, but breach if EITHER is hit.
-  return {
-    level: Math.max(overall, daily),
-    kind: overall >= daily ? "overall_breach" : "daily_breach",
-    reason: (eq) =>
-      overall >= daily
-        ? `Overall drawdown breached: equity ${eq.toFixed(2)} <= floor ${overall.toFixed(2)}`
-        : `Daily drawdown breached: equity ${eq.toFixed(2)} <= floor ${daily.toFixed(2)}`,
-  }
-}
-
-async function tick(): Promise<void> {
-  try {
-    // Publish the latest server prices first so the /api/trade routes can price
-    // market orders from public.prices (Option A fill-price model).
-    await publishPrices()
-    const accounts = await fetchTradableAccounts()
-    if (accounts.length === 0) return
-
-    const accountIds = accounts.map(a => a.id)
-    const allPositions = await fetchAllPositions(accountIds)
-    const allOrders = await fetchAllWorkingOrders(accountIds)
-
-    const positionsByAccount: Record<string, PositionRow[]> = {}
-    for (const p of allPositions) {
-      const accountPositions = positionsByAccount[p.account_id] ?? []
-      accountPositions.push(p)
-      positionsByAccount[p.account_id] = accountPositions
-    }
-
-    const ordersByAccount: Record<string, OrderRow[]> = {}
-    for (const o of allOrders) {
-      const accountOrders = ordersByAccount[o.account_id] ?? []
-      accountOrders.push(o)
-      ordersByAccount[o.account_id] = accountOrders
-    }
-
-    for (const a of accounts) {
-      try {
-        await tickAccount(a.id, a, positionsByAccount[a.id] || [], ordersByAccount[a.id] || [])
-      } catch (err) {
-        console.error(`[account ${a.id}] tick error:`, (err as Error).message)
-      }
-    }
-  } catch (err) {
-    console.error("tick fatal:", (err as Error).message)
-  }
+function runLegacy(reason: string): void {
+  console.log(`risk-worker: legacy loop (${reason}), ticking every ${TICK_MS}ms`)
+  new LegacyEngine(liveDb, feed, postCrmWebhook).start(TICK_MS)
 }
 
 async function main(): Promise<void> {
   const wsPort = Number(process.env.PORT || process.env.WS_PORT || 8080)
   startWsServer(wsPort)
 
-  console.log("risk-worker: starting ingestion\u2026")
+  console.log("risk-worker: starting ingestion…")
   await startIngestion(FX_POLL_MS)
-  console.log(`risk-worker: ingestion ready, ticking every ${TICK_MS}ms`)
-  // Serialize ticks: never overlap DB work if a tick runs long.
-  let running = false
+
+  if (MODE === "legacy") return runLegacy("RISK_ENGINE=legacy")
+
+  const cfg = configFromEnv(process.env)
+  const engine = new RiskEngine(liveDb, feed, postCrmWebhook, cfg)
+  console.log(
+    `risk-worker: engine v4, marking every ${cfg.tickMs}ms, cycle every ${cfg.cycleMs}ms (${cfg.idleCycleMs}ms while flat)`,
+  )
+
+  let last = { ...engine.stats }
   setInterval(() => {
-    if (running) return
-    running = true
-    void tick().finally(() => {
-      running = false
-    })
-  }, TICK_MS)
+    const s = engine.stats
+    console.log(
+      `[engine] last 60s: ${s.cycles - last.cycles} cycles, ${s.ticksSent - last.ticksSent} equity writes sent, ` +
+        `${s.pricesSent - last.pricesSent} prices, ${s.events - last.events} events, ${s.errors - last.errors} errors`,
+    )
+    last = { ...s }
+  }, 60_000).unref()
+
+  const stop = async (signal: string) => {
+    console.log(`risk-worker: ${signal}, sending pending marks`)
+    try {
+      await engine.flush()
+    } finally {
+      process.exit(0)
+    }
+  }
+  process.once("SIGTERM", () => void stop("SIGTERM"))
+  process.once("SIGINT", () => void stop("SIGINT"))
+
+  try {
+    await engine.run()
+  } catch (err) {
+    if (err instanceof MissingCycleRpc) return runLegacy("risk_cycle is not in the database yet")
+    throw err
+  }
 }
 
 void main()

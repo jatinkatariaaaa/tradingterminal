@@ -1,0 +1,12 @@
+{
+  "name": "engine-v4-sql-tests",
+  "private": true,
+  "type": "module",
+  "description": "Differential tests for the engine v4 migration, on in-process PostgreSQL 17 (PGlite).",
+  "scripts": {
+    "test": "node --test engine-v4.test.mjs"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "^0.3.0"
+  }
+}

@@ -49,10 +49,12 @@ export async function updateSession(request: NextRequest) {
     },
   })
 
-  // Touch the session so an expired access token is refreshed via the cookie.
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  // Verify the session without a round trip to Supabase Auth: getClaims checks the access token's
+  // signature against the project's published signing key (cached in memory) and its expiry. An
+  // expired access token is still refreshed via the cookie, exactly as before. The trade routes
+  // (requireUser) and the admin routes still confirm the session with Auth (getUser) themselves.
+  const { data } = await supabase.auth.getClaims()
+  const user = data?.claims ?? null
 
   const { pathname } = request.nextUrl
   const onPublicPath = isPublicPath(pathname)

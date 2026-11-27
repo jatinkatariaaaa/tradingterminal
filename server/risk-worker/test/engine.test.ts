@@ -334,3 +334,55 @@ test("storedCents rounds exactly like Postgres numeric(18,2) does with the JSON 
   values.forEach((x, i) => assert.equal(storedCents(x), Number(rows[i]!.v), `round(${String(x)}, 2)`))
   await pg.close()
 })
+
+test("writes are batched: equity and prices share one transaction per persist period; prices stay fresh", async () => {
+  const pg = await openDb()
+  await pg.exec(`
+    insert into accounts (id, phase, status, starting_balance, balance, equity, daily_start_balance, highest_equity,
+      max_daily_drawdown, max_overall_drawdown, profit_target, last_daily_reset_at)
+    select gen_random_uuid(), 'funded', 'funded', 100000, 100000, 100000, 100000, 100000, 0.05, 0.10, 0, forex_session_anchor(now())
+    from generate_series(1, 4);
+    insert into positions (account_id, symbol, direction, volume, open_price, contract_size, digits, commission, margin)
+    select id, 'BTC/USD', 'buy', 0.5, 73000, 1, 2, 3, 365 from accounts;
+  `)
+  // A live feed: symbols arrive at different times and some are quiet for a few ticks, so each symbol's own
+  // publish timer drifts out of step with the others (what production showed on 2026-11-27).
+  const prices: Record<string, number> = { "BTC/USD": 73_000, "ETH/USD": 2_700, EURUSD: 1.144, GBPUSD: 1.34, USDJPY: 162.4 }
+  const real = new Set(["BTC/USD", "ETH/USD", "EURUSD", "USDJPY"])
+  const feed: PriceFeed = { get: (sym) => prices[sym], all: () => ({ ...prices }), isReal: (sym) => real.has(sym) }
+  const db = pgRiskDb(pg)
+  let t = Date.now()
+  const writes: number[] = []
+  const lastSeen: Record<string, number> = {}
+  let maxGap = 0
+  const counting = {
+    ...db,
+    riskCycle: async (...args: Parameters<typeof db.riskCycle>) => {
+      const [ticks, prices] = args
+      if (ticks.length > 0 || prices.length > 0) writes.push(t)
+      for (const p of prices) {
+        if (lastSeen[p.symbol] !== undefined) maxGap = Math.max(maxGap, t - lastSeen[p.symbol]!)
+        lastSeen[p.symbol] = t
+      }
+      return db.riskCycle(...args)
+    },
+  }
+  const engine = new RiskEngine(counting, feed, recorder().notify, DEFAULT_CONFIG, () => t)
+  for (let step = 0; step < 120; step++) {
+    if (step === 3) real.add("GBPUSD") // first real GBPUSD price 1.5 s after the others
+    for (const sym of Object.keys(prices)) {
+      if (sym === "USDJPY" && step % 5 !== 0) continue // quiet for 2 s at a time
+      prices[sym] = Number((prices[sym]! * (1 + 0.0001 * (1 + (step % 3)))).toFixed(5))
+    }
+    await engine.step()
+    t += DEFAULT_CONFIG.tickMs
+  }
+  const cycles = engine.stats.cycles
+  // 60 s: cycles every 2 s (~30); write cycles only every persist period (5 s on a 2 s grid: every ~6 s).
+  assert.ok(writes.length <= 12, `write cycles in 60 s: ${writes.length} (of ${cycles} cycles)`)
+  assert.ok(writes.length >= 9, `equity and prices still go out regularly: ${writes.length}`)
+  assert.ok(maxGap <= 8_000, `no symbol waits more than 8 s for a publish (max gap ${maxGap} ms)`)
+  const { rows } = await pg.query<{ n: number }>("select count(*)::int n from accounts where equity <> 100000")
+  assert.equal(rows[0]!.n, 4, "every account's equity was written")
+  await pg.close()
+})
